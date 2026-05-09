@@ -4,12 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import os
 import platform
 import re
 import shutil
 import subprocess
 import sys
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+import zlib
 from pathlib import Path
 
 DEFAULT_MARKDOWN = "./main.md"
@@ -67,14 +73,8 @@ def escape_url(url: str) -> str:
 # ---------------------------------------------------------------------------
 
 def process_inline(text: str) -> str:
-    codes: list[str] = []
-
-    def _save_code(m):
-        codes.append(m.group(1))
-        return f"\x00C{len(codes) - 1}\x00"
-
-    text = re.sub(r"`([^`]+)`", _save_code, text)
-
+    # リンクをインラインコードより先に退避する。[`code`](url) のとき、code 用の
+    # \x00 プレースホルダがリンク側に取り込まれて復元されず、LaTeX が不正バイトで失敗するのを防ぐ。
     links: list[tuple[str, str]] = []
 
     def _save_link(m):
@@ -82,6 +82,14 @@ def process_inline(text: str) -> str:
         return f"\x00L{len(links) - 1}\x00"
 
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", _save_link, text)
+
+    codes: list[str] = []
+
+    def _save_code(m):
+        codes.append(m.group(1))
+        return f"\x00C{len(codes) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", _save_code, text)
 
     text = escape_latex(text)
 
@@ -94,9 +102,10 @@ def process_inline(text: str) -> str:
         )
 
     for i, (label, url) in enumerate(links):
+        inner = process_inline(label)
         text = text.replace(
             f"\x00L{i}\x00",
-            r"\href{" + escape_url(url) + "}{" + escape_latex(label) + "}",
+            r"\href{" + escape_url(url) + "}{" + inner + "}",
         )
 
     return text
@@ -172,20 +181,88 @@ def _convert_table(lines: list[str]) -> list[str]:
 _mermaid_counter = 0
 
 
-def _render_mermaid(source: str, build_dir: Path) -> str | None:
-    """Render mermaid source to PNG via mmdc. Returns filename or None."""
+def _is_png(data: bytes) -> bool:
+    return len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def _is_jpeg(data: bytes) -> bool:
+    return len(data) >= 3 and data[:3] == b"\xff\xd8\xff"
+
+
+_HTTP_HEADERS = {
+    "User-Agent": "gen_pdf/wiki-markdown-pdf/1.0 (Mermaid diagram render)",
+}
+
+
+def _render_mermaid_kroki(source: str, png_file: Path) -> bool:
+    """Kroki に Mermaid を POST して PNG を保存する（ネットワーク必須）."""
+    off = os.environ.get("MERMAID_OFFLINE", "").strip().lower()
+    if off in ("1", "true", "yes", "on"):
+        return False
+    base = os.environ.get("MERMAID_KROKI_URL", "https://kroki.io").strip().rstrip("/")
+    url = f"{base}/mermaid/png"
+    req = urllib.request.Request(
+        url,
+        data=source.encode("utf-8"),
+        headers={
+            "Content-Type": "text/plain; charset=utf-8",
+            **_HTTP_HEADERS,
+        },
+        method="POST",
+    )
+    timeout_s = float(os.environ.get("MERMAID_KROKI_TIMEOUT", "90"))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            data = resp.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print(f"  Kroki 警告 ({png_file.name}): {exc}", file=sys.stderr)
+        return False
+    if not _is_png(data):
+        print(
+            f"  Kroki 警告 ({png_file.name}): PNG でない応答を受け取りました",
+            file=sys.stderr,
+        )
+        return False
+    png_file.write_bytes(data)
+    return True
+
+
+def _render_mermaid_ink(source: str, jpg_file: Path) -> bool:
+    """mermaid.ink に GET して JPEG を保存する（ネットワーク必須・URL 長に制限あり）."""
+    off = os.environ.get("MERMAID_OFFLINE", "").strip().lower()
+    if off in ("1", "true", "yes", "on"):
+        return False
+    base = os.environ.get("MERMAID_INK_URL", "https://mermaid.ink").strip().rstrip("/")
+    graph = {"code": source, "mermaid": {}}
+    compress = zlib.compressobj(9, zlib.DEFLATED, 15, 8, zlib.Z_DEFAULT_STRATEGY)
+    blob = compress.compress(bytes(json.dumps(graph), "ascii")) + compress.flush()
+    b64 = (
+        base64.b64encode(blob).decode("ascii").replace("+", "-").replace("/", "_").rstrip("=")
+    )
+    enc_path = urllib.parse.quote("pako:" + b64, safe="")
+    url = f"{base}/img/{enc_path}"
+    timeout_s = float(os.environ.get("MERMAID_INK_TIMEOUT", "90"))
+    req = urllib.request.Request(url, headers=dict(_HTTP_HEADERS))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            data = resp.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print(f"  mermaid.ink 警告 ({jpg_file.name}): {exc}", file=sys.stderr)
+        return False
+    if not _is_jpeg(data):
+        print(
+            f"  mermaid.ink 警告 ({jpg_file.name}): JPEG でない応答を受け取りました",
+            file=sys.stderr,
+        )
+        return False
+    jpg_file.write_bytes(data)
+    return True
+
+
+def _render_mermaid_mmdc(mmd_file: Path, png_file: Path) -> bool:
+    """@mermaid-js/mermaid-cli（mmdc）で PNG を生成する."""
     if not shutil.which("mmdc"):
-        return None
-
-    global _mermaid_counter
-    idx = _mermaid_counter
-    _mermaid_counter += 1
-
-    mmd_file = build_dir / f"mermaid_{idx}.mmd"
-    png_file = build_dir / f"mermaid_{idx}.png"
-
-    mmd_file.write_text(source, encoding="utf-8")
-
+        return False
     try:
         result = subprocess.run(
             [
@@ -201,11 +278,48 @@ def _render_mermaid(source: str, build_dir: Path) -> str | None:
             timeout=60,
         )
     except subprocess.TimeoutExpired:
-        return None
+        return False
 
-    if result.returncode == 0 and png_file.exists():
+    if result.returncode == 0 and png_file.exists() and png_file.stat().st_size > 0:
+        return True
+    err = (result.stderr or result.stdout or "").strip()
+    if len(err) > 400:
+        err = err[:400] + "…"
+    print(f"  mmdc 警告 ({png_file.stem}): {err}", file=sys.stderr)
+    return False
+
+
+def _render_mermaid(source: str, build_dir: Path) -> str | None:
+    """Mermaid を画像化。mmdc → mermaid.ink → Kroki の順で試す."""
+    global _mermaid_counter
+    idx = _mermaid_counter
+    _mermaid_counter += 1
+
+    mmd_file = build_dir / f"mermaid_{idx}.mmd"
+    png_file = build_dir / f"mermaid_{idx}.png"
+    mmd_file.write_text(source, encoding="utf-8")
+
+    if _render_mermaid_mmdc(mmd_file, png_file):
         return f"mermaid_{idx}.png"
-    print(f"  mmdc 警告 (mermaid_{idx}): {result.stderr.strip()}", file=sys.stderr)
+
+    if png_file.exists():
+        try:
+            png_file.unlink()
+        except OSError:
+            pass
+
+    jpg_file = build_dir / f"mermaid_{idx}.jpg"
+    if jpg_file.exists():
+        try:
+            jpg_file.unlink()
+        except OSError:
+            pass
+    if _render_mermaid_ink(source, jpg_file):
+        return f"mermaid_{idx}.jpg"
+
+    if _render_mermaid_kroki(source, png_file):
+        return f"mermaid_{idx}.png"
+
     return None
 
 
@@ -262,7 +376,12 @@ def markdown_to_latex(md: str, build_dir: Path | None = None) -> str:
                 continue
             else:
                 in_code = False
-                if code_lang == "mermaid" and build_dir is not None:
+                fence_lang = (
+                    code_lang.strip().split()[0].lower()
+                    if code_lang.strip()
+                    else ""
+                )
+                if fence_lang == "mermaid" and build_dir is not None:
                     mmd_src = "\n".join(code_buf)
                     img = _render_mermaid(mmd_src, build_dir)
                     if img:
@@ -330,7 +449,11 @@ def markdown_to_latex(md: str, build_dir: Path | None = None) -> str:
         if hm:
             _flush_envs()
             level = len(hm.group(1))
-            title = process_inline(hm.group(2))
+            raw_title = hm.group(2)
+            # Wiki 閲覧用の ## [ch] … を PDF では番号なしタイトルに正規化（LaTeX の section 番号を使う）
+            if level == 2 and raw_title.startswith("[ch] "):
+                raw_title = raw_title[5:]
+            title = process_inline(raw_title)
             cmd = {1: "section", 2: "section", 3: "subsection", 4: "subsubsection"}
             out.append(f"\\{cmd[level]}{{{title}}}")
             i += 1
@@ -398,8 +521,6 @@ def generate_document(
     body: str,
     date_info: str,
     fonts: dict[str, str],
-    author: str = "",
-    contact: str = "",
 ) -> str:
     return (
         r"\documentclass[a4paper,11pt]{article}"
@@ -444,10 +565,7 @@ def generate_document(
         "\n\n"
         rf"\title{{{escape_latex(title)}}}"
         "\n"
-        r"\author{"
-        + (escape_latex(author) if author else "")
-        + (r" \\ \small \href{mailto:" + escape_url(contact) + "}{" + escape_latex(contact) + "}" if contact else "")
-        + "}"
+        r"\author{}"
         "\n"
         rf"\date{{{escape_latex(date_info)}}}"
         "\n\n"
@@ -513,18 +631,11 @@ def main():
         parts.append(f"更新: {ud.group(1)}")
     date_info = "　/　".join(parts)
 
-    author_m = re.search(r"文責:\s*(.+)", md_text)
-    author = author_m.group(1).strip() if author_m else ""
-    contact_m = re.search(r"Contact\s+email:\s*(\S+)", md_text)
-    contact = contact_m.group(1).strip() if contact_m else ""
-
     # --- 本文からタイトル行と日時行を除去 ---
     body = md_text
     body = re.sub(r"^#\s+.*\n?", "", body, count=1)
     body = re.sub(r"^作成日時:.*\n?", "", body, flags=re.MULTILINE)
     body = re.sub(r"^更新日時:.*\n?", "", body, flags=re.MULTILINE)
-    body = re.sub(r"^文責:.*\n?", "", body, flags=re.MULTILINE)
-    body = re.sub(r"^Contact\s+email:.*\n?", "", body, flags=re.MULTILINE)
 
     # --- 変換 ---
     print("Markdown → LaTeX 変換中...")
@@ -532,7 +643,7 @@ def main():
     _mermaid_counter = 0
     latex_body = markdown_to_latex(body, build_dir)
     fonts = get_cjk_fonts()
-    latex_doc = generate_document(title, latex_body, date_info, fonts, author, contact)
+    latex_doc = generate_document(title, latex_body, date_info, fonts)
 
     tex_path = build_dir / (md_path.stem + ".tex")
     tex_path.write_text(latex_doc, encoding="utf-8")
