@@ -521,6 +521,7 @@ def generate_document(
     body: str,
     date_info: str,
     fonts: dict[str, str],
+    author_info: str = "",
 ) -> str:
     return (
         r"\documentclass[a4paper,11pt]{article}"
@@ -565,7 +566,7 @@ def generate_document(
         "\n\n"
         rf"\title{{{escape_latex(title)}}}"
         "\n"
-        r"\author{}"
+        rf"\author{{{author_info}}}"
         "\n"
         rf"\date{{{escape_latex(date_info)}}}"
         "\n\n"
@@ -631,11 +632,30 @@ def main():
         parts.append(f"更新: {ud.group(1)}")
     date_info = "　/　".join(parts)
 
+    # --- 作者欄（文責・Contact）: タイトル用にまとめ、本文では日時と同様に除去 ---
+    author_lines: list[str] = []
+    am = re.search(r"^(文責:\s*.+)$", md_text, re.MULTILINE)
+    if am:
+        author_lines.append(am.group(1).strip())
+    cm = re.search(r"^(Contact\s*(?:email)?\s*:.+)$", md_text, re.MULTILINE | re.IGNORECASE)
+    if cm:
+        author_lines.append(cm.group(1).strip())
+    author_info = (
+        r" \\ ".join(escape_latex(line) for line in author_lines) if author_lines else ""
+    )
+
     # --- 本文からタイトル行と日時行を除去 ---
     body = md_text
     body = re.sub(r"^#\s+.*\n?", "", body, count=1)
     body = re.sub(r"^作成日時:.*\n?", "", body, flags=re.MULTILINE)
     body = re.sub(r"^更新日時:.*\n?", "", body, flags=re.MULTILINE)
+    body = re.sub(r"^文責:.*\n?", "", body, flags=re.MULTILINE)
+    body = re.sub(
+        r"^Contact\s*(?:email)?\s*:.*\n?",
+        "",
+        body,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
 
     # --- 変換 ---
     print("Markdown → LaTeX 変換中...")
@@ -643,7 +663,7 @@ def main():
     _mermaid_counter = 0
     latex_body = markdown_to_latex(body, build_dir)
     fonts = get_cjk_fonts()
-    latex_doc = generate_document(title, latex_body, date_info, fonts)
+    latex_doc = generate_document(title, latex_body, date_info, fonts, author_info)
 
     tex_path = build_dir / (md_path.stem + ".tex")
     tex_path.write_text(latex_doc, encoding="utf-8")
