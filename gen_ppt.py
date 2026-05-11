@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""main.md の内容を要約した PowerPoint 互換プレゼンを生成する."""
+"""main.md の内容を要約した PPTX プレゼンを生成する."""
 
 from __future__ import annotations
 
 import argparse
 import re
+import shutil
+import subprocess
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -13,7 +15,8 @@ from xml.sax.saxutils import escape
 
 
 DEFAULT_MARKDOWN = Path("./main.md")
-DEFAULT_OUTPUT = Path("./build/main.ppt")
+DEFAULT_OUTPUT = Path("./build/main.pptx")
+DEFAULT_PDF_OUTPUT = Path("./build/main.pdf")
 
 EMU_PER_INCH = 914400
 SLIDE_W = 13.333333 * EMU_PER_INCH
@@ -238,6 +241,55 @@ def bullet_paragraph(text: str, size: int = 2150) -> str:
     )
 
 
+def solid_fill(color: str, alpha: int | None = None) -> str:
+    alpha_xml = f'<a:alpha val="{alpha}"/>' if alpha is not None else ""
+    return f'<a:solidFill><a:srgbClr val="{color}">{alpha_xml}</a:srgbClr></a:solidFill>'
+
+
+def line_fill(color: str | None, width: int = 12700) -> str:
+    if not color:
+        return "<a:ln><a:noFill/></a:ln>"
+    return f'<a:ln w="{width}">{solid_fill(color)}</a:ln>'
+
+
+def shadow_xml() -> str:
+    return (
+        '<a:effectLst>'
+        '<a:outerShdw blurRad="50800" dist="25400" dir="5400000" algn="ctr" rotWithShape="0">'
+        '<a:srgbClr val="0F172A"><a:alpha val="18000"/></a:srgbClr>'
+        "</a:outerShdw>"
+        "</a:effectLst>"
+    )
+
+
+def shape(
+    shape_id: int,
+    name: str,
+    x: int,
+    y: int,
+    cx: int,
+    cy: int,
+    fill: str,
+    line: str | None = None,
+    radius: str = "rect",
+    alpha: int | None = None,
+) -> str:
+    return f"""
+<p:sp>
+  <p:nvSpPr>
+    <p:cNvPr id="{shape_id}" name="{escape(name)}"/>
+    <p:cNvSpPr/>
+    <p:nvPr/>
+  </p:nvSpPr>
+  <p:spPr>
+    <a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
+    <a:prstGeom prst="{radius}"><a:avLst/></a:prstGeom>
+    {solid_fill(fill, alpha)}
+    {line_fill(line)}
+  </p:spPr>
+</p:sp>"""
+
+
 def textbox(
     shape_id: int,
     name: str,
@@ -249,15 +301,11 @@ def textbox(
     fill: str | None = None,
     line: str | None = None,
     radius: str = "rect",
+    shadow: bool = False,
 ) -> str:
-    fill_xml = (
-        f'<a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>' if fill else "<a:noFill/>"
-    )
-    line_xml = (
-        f'<a:ln><a:solidFill><a:srgbClr val="{line}"/></a:solidFill></a:ln>'
-        if line
-        else "<a:ln><a:noFill/></a:ln>"
-    )
+    fill_xml = solid_fill(fill) if fill else "<a:noFill/>"
+    line_xml = line_fill(line)
+    effect_xml = shadow_xml() if shadow else ""
     return f"""
 <p:sp>
   <p:nvSpPr>
@@ -270,6 +318,7 @@ def textbox(
     <a:prstGeom prst="{radius}"><a:avLst/></a:prstGeom>
     {fill_xml}
     {line_xml}
+    {effect_xml}
   </p:spPr>
   <p:txBody>
     <a:bodyPr wrap="square" lIns="120000" tIns="70000" rIns="120000" bIns="70000"/>
@@ -280,36 +329,85 @@ def textbox(
 
 
 def slide_xml(slide: Slide, index: int) -> str:
-    title = paragraph(slide.title, 3400 if index else 4200, "FFFFFF", True)
-    kicker = paragraph(slide.kicker, 1500, "DDE7FF", False) if slide.kicker else ""
+    palette = [
+        ("0F172A", "2563EB", "DBEAFE"),
+        ("111827", "0891B2", "CFFAFE"),
+        ("111827", "7C3AED", "EDE9FE"),
+        ("111827", "EA580C", "FFEDD5"),
+    ]
+    header_color, accent_color, pale_color = palette[index % len(palette)]
+
+    background = shape(2, "Background", 0, 0, int(SLIDE_W), int(SLIDE_H), "F8FAFC")
+    accent_bar = shape(3, "Accent Bar", 0, 0, emu(0.18), int(SLIDE_H), accent_color)
+    orb = shape(
+        4,
+        "Accent Orb",
+        emu(10.55),
+        emu(-0.55),
+        emu(3.45),
+        emu(3.45),
+        pale_color,
+        radius="ellipse",
+        alpha=62000,
+    )
+    small_orb = shape(
+        5,
+        "Accent Orb Small",
+        emu(11.85),
+        emu(4.95),
+        emu(1.55),
+        emu(1.55),
+        accent_color,
+        radius="ellipse",
+        alpha=15000,
+    )
+
+    title = paragraph(slide.title, 3350 if index else 4300, "FFFFFF", True)
+    kicker = paragraph(slide.kicker, 1450, pale_color, False) if slide.kicker else ""
     header = textbox(
-        2,
+        6,
         "Title",
-        emu(0),
-        emu(0),
-        int(SLIDE_W),
-        emu(1.32),
+        emu(0.68),
+        emu(0.42),
+        emu(9.65),
+        emu(1.34),
         kicker + title,
-        fill="1D4ED8",
+        fill=header_color,
+        radius="roundRect",
+        shadow=True,
     )
 
     bullet_xml = "".join(bullet_paragraph(b) for b in slide.bullets)
     content = textbox(
-        3,
+        7,
         "Summary",
         emu(0.85),
-        emu(1.75),
-        emu(11.65),
-        emu(4.65),
+        emu(2.02),
+        emu(10.8),
+        emu(4.35),
         bullet_xml,
-        fill="F8FAFC",
-        line="DBEAFE",
+        fill="FFFFFF",
+        line=pale_color,
         radius="roundRect",
+        shadow=True,
+    )
+
+    index_chip = textbox(
+        8,
+        "Section Chip",
+        emu(10.75),
+        emu(0.58),
+        emu(1.55),
+        emu(0.56),
+        paragraph(f"{index + 1:02d}", 1600, "FFFFFF", True),
+        fill=accent_color,
+        radius="roundRect",
+        shadow=True,
     )
 
     footer_text = slide.note or "AMD XDNA Architecture Overview"
     footer = textbox(
-        4,
+        9,
         "Footer",
         emu(0.75),
         emu(6.88),
@@ -319,7 +417,7 @@ def slide_xml(slide: Slide, index: int) -> str:
     )
 
     slide_no = textbox(
-        5,
+        10,
         "Slide Number",
         emu(12.25),
         emu(6.86),
@@ -343,7 +441,12 @@ def slide_xml(slide: Slide, index: int) -> str:
           <a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/>
         </a:xfrm>
       </p:grpSpPr>
+      {background}
+      {orb}
+      {small_orb}
+      {accent_bar}
       {header}
+      {index_chip}
       {content}
       {footer}
       {slide_no}
@@ -568,10 +671,264 @@ def write_presentation(slides: list[Slide], meta: dict[str, str], output: Path) 
             zf.writestr(f"ppt/slides/slide{i}.xml", slide_xml(slide, i - 1))
 
 
+def find_soffice() -> str | None:
+    for command in ("soffice", "libreoffice"):
+        path = shutil.which(command)
+        if path:
+            return path
+
+    mac_app = Path("/Applications/LibreOffice.app/Contents/MacOS/soffice")
+    if mac_app.exists():
+        return str(mac_app)
+
+    return None
+
+
+def convert_pptx_with_libreoffice(pptx_path: Path, pdf_path: Path) -> bool:
+    soffice = find_soffice()
+    if not soffice:
+        return False
+
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        [
+            soffice,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(pdf_path.parent),
+            str(pptx_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        stderr = (result.stderr or result.stdout or "").strip()
+        print(f"LibreOffice PDF変換に失敗しました。簡易PDF生成に切り替えます: {stderr}")
+        return False
+
+    converted = pdf_path.parent / f"{pptx_path.stem}.pdf"
+    if converted.exists() and converted != pdf_path:
+        if pdf_path.exists():
+            pdf_path.unlink()
+        converted.rename(pdf_path)
+
+    return pdf_path.exists()
+
+
+def pdf_text(text: str) -> str:
+    return "<FEFF" + text.encode("utf-16-be").hex().upper() + ">"
+
+
+def pdf_escape_name(name: str) -> str:
+    return name.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def pdf_color(hex_color: str) -> str:
+    r = int(hex_color[0:2], 16) / 255
+    g = int(hex_color[2:4], 16) / 255
+    b = int(hex_color[4:6], 16) / 255
+    return f"{r:.4f} {g:.4f} {b:.4f}"
+
+
+def text_width_units(text: str) -> float:
+    width = 0.0
+    for ch in text:
+        width += 0.55 if ord(ch) < 128 else 1.0
+    return width
+
+
+def wrap_text(text: str, max_units: float) -> list[str]:
+    lines: list[str] = []
+    current = ""
+    for token in re.split(r"(\s+)", text):
+        if not token:
+            continue
+        if token.isspace():
+            candidate = current + token
+        else:
+            candidate = current + token
+        if current and text_width_units(candidate) > max_units:
+            lines.append(current.strip())
+            current = token.strip()
+        else:
+            current = candidate
+
+    if current.strip():
+        lines.append(current.strip())
+
+    out: list[str] = []
+    for line in lines:
+        current = ""
+        for ch in line:
+            if current and text_width_units(current + ch) > max_units:
+                out.append(current)
+                current = ch
+            else:
+                current += ch
+        if current:
+            out.append(current)
+    return out
+
+
+def pdf_rect(x: float, y: float, w: float, h: float, color: str) -> str:
+    return f"{pdf_color(color)} rg {x:.2f} {y:.2f} {w:.2f} {h:.2f} re f\n"
+
+
+def pdf_circle(cx: float, cy: float, r: float, color: str) -> str:
+    # Bezier近似の円。PPTX側の装飾円に対応する軽量なPDF表現。
+    k = 0.5522847498
+    c = r * k
+    return (
+        f"{pdf_color(color)} rg "
+        f"{cx + r:.2f} {cy:.2f} m "
+        f"{cx + r:.2f} {cy + c:.2f} {cx + c:.2f} {cy + r:.2f} {cx:.2f} {cy + r:.2f} c "
+        f"{cx - c:.2f} {cy + r:.2f} {cx - r:.2f} {cy + c:.2f} {cx - r:.2f} {cy:.2f} c "
+        f"{cx - r:.2f} {cy - c:.2f} {cx - c:.2f} {cy - r:.2f} {cx:.2f} {cy - r:.2f} c "
+        f"{cx + c:.2f} {cy - r:.2f} {cx + r:.2f} {cy - c:.2f} {cx + r:.2f} {cy:.2f} c f\n"
+    )
+
+
+def pdf_show_text(x: float, y: float, text: str, size: float, color: str) -> str:
+    return (
+        "BT "
+        f"/F1 {size:.1f} Tf {pdf_color(color)} rg "
+        f"1 0 0 1 {x:.2f} {y:.2f} Tm "
+        f"{pdf_text(text)} Tj ET\n"
+    )
+
+
+def pdf_slide_stream(slide: Slide, index: int, width: float, height: float) -> str:
+    palette = [
+        ("0F172A", "2563EB", "DBEAFE"),
+        ("111827", "0891B2", "CFFAFE"),
+        ("111827", "7C3AED", "EDE9FE"),
+        ("111827", "EA580C", "FFEDD5"),
+    ]
+    header_color, accent_color, pale_color = palette[index % len(palette)]
+
+    stream = []
+    stream.append(pdf_rect(0, 0, width, height, "F8FAFC"))
+    stream.append(pdf_circle(width - 80, height - 20, 125, pale_color))
+    stream.append(pdf_circle(width - 15, 110, 55, pale_color))
+    stream.append(pdf_rect(0, 0, 13, height, accent_color))
+
+    stream.append(pdf_rect(49, height - 130, 695, 96, header_color))
+    stream.append(pdf_show_text(67, height - 67, slide.kicker, 13, pale_color))
+    stream.append(pdf_show_text(67, height - 105, slide.title, 26 if index else 31, "FFFFFF"))
+
+    stream.append(pdf_rect(width - 187, height - 85, 112, 40, accent_color))
+    stream.append(pdf_show_text(width - 151, height - 72, f"{index + 1:02d}", 18, "FFFFFF"))
+
+    stream.append(pdf_rect(61, 94, 778, 313, "FFFFFF"))
+    stream.append(pdf_rect(61, 94, 778, 4, pale_color))
+
+    y = 360
+    for bullet in slide.bullets:
+        lines = wrap_text(bullet, 48)
+        stream.append(pdf_show_text(92, y, "•", 17, accent_color))
+        for i, line in enumerate(lines):
+            stream.append(pdf_show_text(116, y - (i * 22), line, 15.5, "263238"))
+        y -= max(1, len(lines)) * 22 + 18
+
+    footer = slide.note or "AMD XDNA Architecture Overview"
+    stream.append(pdf_show_text(54, 29, footer[:96], 8.5, "64748B"))
+    stream.append(pdf_show_text(width - 65, 29, str(index + 1), 8.5, "94A3B8"))
+    return "".join(stream)
+
+
+def render_pdf(slides: list[Slide], meta: dict[str, str], pdf_path: Path) -> None:
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    width = 960.0
+    height = 540.0
+
+    objects: list[bytes] = []
+
+    def add_object(body: str | bytes) -> int:
+        data = body.encode("utf-8") if isinstance(body, str) else body
+        objects.append(data)
+        return len(objects)
+
+    font_obj = add_object(
+        "<< /Type /Font /Subtype /Type0 /BaseFont /HeiseiKakuGo-W5 "
+        "/Encoding /UniJIS-UTF16-H /DescendantFonts [ << /Type /Font "
+        "/Subtype /CIDFontType0 /BaseFont /HeiseiKakuGo-W5 "
+        "/CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 5 >> "
+        "/FontDescriptor << /Type /FontDescriptor /FontName /HeiseiKakuGo-W5 "
+        "/Flags 6 /FontBBox [0 -200 1000 900] /ItalicAngle 0 "
+        "/Ascent 880 /Descent -120 /CapHeight 700 /StemV 80 >> >> ] >>"
+    )
+
+    page_objects: list[int] = []
+    pages_obj = 0
+    for index, slide in enumerate(slides):
+        stream = pdf_slide_stream(slide, index, width, height).encode("utf-8")
+        content_obj = add_object(
+            b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n"
+            + stream
+            + b"endstream"
+        )
+        page_obj = add_object(
+            f"<< /Type /Page /Parent PAGES_REF 0 R /MediaBox [0 0 {width:.0f} {height:.0f}] "
+            f"/Resources << /Font << /F1 {font_obj} 0 R >> >> /Contents {content_obj} 0 R >>"
+        )
+        page_objects.append(page_obj)
+
+    pages_obj = add_object(
+        "<< /Type /Pages /Kids ["
+        + " ".join(f"{obj} 0 R" for obj in page_objects)
+        + f"] /Count {len(page_objects)} >>"
+    )
+    catalog_obj = add_object(f"<< /Type /Catalog /Pages {pages_obj} 0 R >>")
+    info_obj = add_object(
+        f"<< /Title ({pdf_escape_name(meta['title'])}) /Producer (gen_ppt.py) >>"
+    )
+
+    for page_obj in page_objects:
+        objects[page_obj - 1] = objects[page_obj - 1].replace(
+            b"PAGES_REF", str(pages_obj).encode("ascii")
+        )
+
+    output = bytearray(b"%PDF-1.5\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for i, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{i} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+
+    xref_pos = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        output.extend(f"{off:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        (
+            "trailer\n"
+            f"<< /Size {len(objects) + 1} /Root {catalog_obj} 0 R /Info {info_obj} 0 R >>\n"
+            "startxref\n"
+            f"{xref_pos}\n"
+            "%%EOF\n"
+        ).encode("ascii")
+    )
+    pdf_path.write_bytes(output)
+
+
+def write_pdf(slides: list[Slide], meta: dict[str, str], pptx_path: Path, pdf_path: Path) -> None:
+    if convert_pptx_with_libreoffice(pptx_path, pdf_path):
+        return
+
+    render_pdf(slides, meta, pdf_path)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="main.md を要約したプレゼンを生成します。")
+    parser = argparse.ArgumentParser(description="main.md を要約したPPTXとPDFを生成します。")
     parser.add_argument("markdown", nargs="?", type=Path, default=DEFAULT_MARKDOWN)
     parser.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--pdf-output", type=Path, default=DEFAULT_PDF_OUTPUT)
+    parser.add_argument("--no-pdf", action="store_true", help="PDF生成をスキップする")
     args = parser.parse_args()
 
     if not args.markdown.exists():
@@ -582,6 +939,9 @@ def main() -> None:
     slides = build_slides(meta)
     write_presentation(slides, meta, args.output)
     print(f"生成完了: {args.output} ({len(slides)} slides)")
+    if not args.no_pdf:
+        write_pdf(slides, meta, args.output, args.pdf_output)
+        print(f"PDF生成完了: {args.pdf_output}")
 
 
 if __name__ == "__main__":
