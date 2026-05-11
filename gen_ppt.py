@@ -248,11 +248,25 @@ def paragraph(text: str, size: int, color: str = "111827", bold: bool = False) -
     )
 
 
-def bullet_paragraph(text: str, size: int = 1750, color: str = "111827") -> str:
+def bullet_paragraph(text: str, size: int = 1700, color: str = "111827") -> str:
     return (
-        '<a:p><a:pPr marL="342900" indent="-228600">'
-        '<a:buFont typeface="Arial"/><a:buChar char="•"/></a:pPr>'
+        '<a:p>'
+        '<a:pPr marL="342900" indent="-228600">'
+        '<a:lnSpc><a:spcPct val="140000"/></a:lnSpc>'
+        '<a:spcBef><a:spcPts val="900"/></a:spcBef>'
+        '<a:buClr><a:srgbClr val="1D4E89"/></a:buClr>'
+        '<a:buFont typeface="Arial"/><a:buChar char="●"/>'
+        '</a:pPr>'
         f"{text_run(text, size, color)}"
+        '<a:endParaRPr lang="ja-JP"/></a:p>'
+    )
+
+
+def plain_paragraph(text: str, size: int, color: str = "111827", bold: bool = False, align: str = "l") -> str:
+    return (
+        '<a:p>'
+        f'<a:pPr algn="{align}"><a:buNone/></a:pPr>'
+        f"{text_run(text, size, color, bold)}"
         '<a:endParaRPr lang="ja-JP"/></a:p>'
     )
 
@@ -422,6 +436,14 @@ def metric_card(
     )
 
 
+FIG_X = 7.0
+FIG_Y = 2.18
+FIG_W = 5.95
+FIG_H = 4.55
+FIG_CONTENT_TOP = FIG_Y + 0.78
+FIG_CONTENT_BOTTOM = FIG_Y + FIG_H - 0.22
+
+
 def visual_frame(
     shape_id: int,
     title: str,
@@ -431,148 +453,1015 @@ def visual_frame(
     text_color: str,
 ) -> str:
     return (
-        textbox(
+        shape(
             shape_id,
-            "Visual Frame",
-            emu(6.95),
-            emu(1.7),
-            emu(5.55),
-            emu(4.85),
-            paragraph("Figure: " + title.title(), 900, accent, True),
-            fill=panel,
-            line=accent,
+            "Figure Container",
+            emu(FIG_X),
+            emu(FIG_Y),
+            emu(FIG_W),
+            emu(FIG_H),
+            "FFFFFF",
+            line="E5E7EB",
             radius="roundRect",
-            shadow=False,
         )
-        + rule_line(shape_id + 1, "Figure Rule", emu(7.18), emu(2.13), emu(5.08), emu(0.015), accent2, 100000)
-        + rule_line(shape_id + 2, "Figure Baseline", emu(7.18), emu(6.26), emu(5.08), emu(0.015), "CBD5E1", 100000)
-        + label_box(shape_id + 3, "architecture diagram", 7.25, 6.0, 2.05, 0.28, "FFFFFF", accent2, "475569", 630, False)
+        + shape(
+            shape_id + 1,
+            "Figure Header",
+            emu(FIG_X),
+            emu(FIG_Y),
+            emu(FIG_W),
+            emu(0.52),
+            "F8FAFC",
+            line=None,
+            radius="roundRect",
+        )
+        + textbox(
+            shape_id + 2,
+            "Figure Caption",
+            emu(FIG_X + 0.22),
+            emu(FIG_Y + 0.08),
+            emu(FIG_W - 0.44),
+            emu(0.4),
+            plain_paragraph("図｜" + title, 1000, accent, True),
+            fill=None,
+            line=None,
+        )
+        + rule_line(
+            shape_id + 3,
+            "Figure Divider",
+            emu(FIG_X + 0.05),
+            emu(FIG_Y + 0.52),
+            emu(FIG_W - 0.1),
+            emu(0.012),
+            accent,
+            100000,
+        )
     )
 
 
-def grid_overlay(start_id: int, accent: str, accent2: str) -> str:
-    parts: list[str] = []
-    for i in range(4):
-        y = 1.55 + i * 1.25
-        parts.append(rule_line(start_id + i, "Subtle Rule", emu(0.75), emu(y), emu(11.8), emu(0.006), "E5E7EB", 100000))
-    return "".join(parts)
+def fig_box(
+    shape_id: int,
+    text: str,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    fill: str | None,
+    line: str | None,
+    text_color: str = "111827",
+    size: int = 1050,
+    bold: bool = True,
+    align: str = "ctr",
+    subtitle: str | None = None,
+    subtitle_color: str = "475569",
+    subtitle_size: int = 850,
+) -> str:
+    body = plain_paragraph(text, size, text_color, bold, align)
+    if subtitle:
+        body += plain_paragraph(subtitle, subtitle_size, subtitle_color, False, align)
+    return textbox(
+        shape_id,
+        text[:40] or "Figure Box",
+        emu(x),
+        emu(y),
+        emu(w),
+        emu(h),
+        body,
+        fill=fill,
+        line=line,
+        radius="roundRect",
+        shadow=False,
+    )
+
+
+def fig_text(
+    shape_id: int,
+    text: str,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    color: str = "111827",
+    size: int = 950,
+    bold: bool = False,
+    align: str = "l",
+) -> str:
+    return textbox(
+        shape_id,
+        "Figure Text",
+        emu(x),
+        emu(y),
+        emu(w),
+        emu(h),
+        plain_paragraph(text, size, color, bold, align),
+        fill=None,
+        line=None,
+    )
+
+
+def fig_hbar(shape_id: int, x: float, y: float, length: float, color: str, thickness: float = 0.07) -> str:
+    return shape(shape_id, "HBar", emu(x), emu(y), emu(length), emu(thickness), color, None, "rect")
+
+
+def fig_vbar(shape_id: int, x: float, y: float, length: float, color: str, thickness: float = 0.07) -> str:
+    return shape(shape_id, "VBar", emu(x), emu(y), emu(thickness), emu(length), color, None, "rect")
 
 
 def draw_tile_array(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "2D TILE ARRAY", panel, accent, accent2, text_color)]
+    parts = [visual_frame(start_id, "XDNA 2 タイルアレイ（Strix Point: 4行×8列）", panel, accent, accent2, text_color)]
     sid = start_id + 10
+
+    cell_w, cell_h, gap = 0.36, 0.30, 0.04
+    base_x, base_y = 7.20, 2.95
+
     for row in range(4):
         for col in range(8):
             fill = "EFF6FF" if (row + col) % 2 == 0 else "DBEAFE"
-            parts.append(shape(sid, "Compute Tile", emu(7.32 + col * 0.43), emu(2.48 + row * 0.39), emu(0.31), emu(0.24), fill, accent2, "roundRect"))
+            parts.append(
+                shape(
+                    sid,
+                    "Compute Tile",
+                    emu(base_x + col * (cell_w + gap)),
+                    emu(base_y + row * (cell_h + gap)),
+                    emu(cell_w),
+                    emu(cell_h),
+                    fill,
+                    accent2,
+                    "roundRect",
+                )
+            )
             sid += 1
+
+    mem_y = base_y + 4 * (cell_h + gap) + 0.12
     for col in range(8):
-        parts.append(shape(sid, "Memory Tile", emu(7.32 + col * 0.43), emu(4.25), emu(0.31), emu(0.28), "ECFDF5", accent, "roundRect"))
+        parts.append(
+            shape(
+                sid,
+                "Memory Tile",
+                emu(base_x + col * (cell_w + gap)),
+                emu(mem_y),
+                emu(cell_w),
+                emu(cell_h),
+                "DCFCE7",
+                accent,
+                "roundRect",
+            )
+        )
         sid += 1
-    parts.append(rule_line(sid, "DMA Bus", emu(7.18), emu(4.75), emu(3.75), emu(0.025), accent, 100000))
-    parts.append(label_box(sid + 1, "32 Compute Tiles", 10.05, 2.48, 1.45, 0.42, "FFFFFF", accent2, text_color, 780))
-    parts.append(label_box(sid + 2, "L2 / DMA", 10.05, 4.18, 1.15, 0.42, "FFFFFF", accent, text_color, 780))
+
+    bus_y = mem_y + cell_h + 0.12
+    bus_w = 8 * cell_w + 7 * gap
+    parts.append(shape(sid, "DMA Bus", emu(base_x), emu(bus_y), emu(bus_w), emu(0.10), accent, None, "rect"))
+    sid += 1
+
+    ddr_y = bus_y + 0.22
+    parts.append(
+        fig_box(sid, "DDR メインメモリ", base_x, ddr_y, bus_w, 0.4, "F1F5F9", accent, text_color, 1000, True)
+    )
+    sid += 1
+
+    lx = base_x + bus_w + 0.18
+    parts.append(fig_box(sid, "計算タイル ×32", lx, base_y - 0.05, 1.95, 0.4, "EFF6FF", accent2, text_color, 980, True))
+    sid += 1
+    parts.append(fig_text(sid, "VLIW + SIMD", lx, base_y + 0.4, 1.95, 0.3, "475569", 850, False, "l"))
+    sid += 1
+    parts.append(fig_box(sid, "メモリタイル ×8", lx, mem_y - 0.05, 1.95, 0.4, "DCFCE7", accent, text_color, 980, True))
+    sid += 1
+    parts.append(fig_text(sid, "L2 / DDR との橋渡し", lx, mem_y + 0.4, 1.95, 0.3, "475569", 850, False, "l"))
+    sid += 1
+    parts.append(fig_box(sid, "DMA バス ×8", lx, bus_y - 0.12, 1.95, 0.4, "FFFFFF", accent, accent, 980, True))
+    sid += 1
+    parts.append(fig_text(sid, "DDR ↔ メモリタイル", lx, bus_y + 0.27, 1.95, 0.3, "475569", 850, False, "l"))
+    sid += 1
+
+    return "".join(parts)
+
+
+def draw_tile_core(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "AIE 計算タイル 1個の内部構成", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    parts.append(
+        fig_box(
+            sid,
+            "ベクトルプロセッサ",
+            7.2,
+            3.0,
+            3.55,
+            1.0,
+            "EFF6FF",
+            accent,
+            text_color,
+            1200,
+            True,
+            "ctr",
+            subtitle="VLIW + SIMD ・1.3 GHz以上",
+            subtitle_color="475569",
+            subtitle_size=850,
+        )
+    )
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "スカラ RISC",
+            10.9,
+            3.0,
+            2.0,
+            1.0,
+            "DBEAFE",
+            accent2,
+            text_color,
+            1150,
+            True,
+            "ctr",
+            subtitle="制御フロー・アドレス",
+            subtitle_size=820,
+        )
+    )
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "命令メモリ",
+            7.2,
+            4.2,
+            2.6,
+            0.85,
+            "FFFFFF",
+            "94A3B8",
+            text_color,
+            1050,
+            True,
+            "ctr",
+            subtitle="Program Memory",
+            subtitle_size=780,
+        )
+    )
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "ローカルデータメモリ",
+            9.95,
+            4.2,
+            2.95,
+            0.85,
+            "FFFFFF",
+            "94A3B8",
+            text_color,
+            1050,
+            True,
+            "ctr",
+            subtitle="重み・活性化値・係数",
+            subtitle_size=780,
+        )
+    )
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "インターコネクト（隣接タイル ↔ メモリタイル）",
+            7.2,
+            5.2,
+            5.7,
+            0.7,
+            "DCFCE7",
+            accent,
+            text_color,
+            1050,
+            True,
+            "ctr",
+            subtitle="高帯域・低遅延 / プログラマブル DMA",
+            subtitle_size=820,
+        )
+    )
+    sid += 1
+
+    return "".join(parts)
+
+
+def draw_gemm(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "GEMM（行列積）の実行フロー", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    parts.append(fig_box(sid, "行列 A", 7.2, 3.0, 1.05, 0.65, "EFF6FF", accent, text_color, 1100, True))
+    sid += 1
+    parts.append(fig_box(sid, "行列 B", 7.2, 3.85, 1.05, 0.65, "DBEAFE", accent2, text_color, 1100, True))
+    sid += 1
+    parts.append(fig_hbar(sid, 8.30, 3.62, 0.45, accent))
+    sid += 1
+    for i in range(3):
+        parts.append(
+            fig_box(
+                sid,
+                f"Tile {i + 1}",
+                8.85 + i * 0.78,
+                3.18,
+                0.72,
+                1.1,
+                "FFFFFF",
+                accent,
+                text_color,
+                1000,
+                True,
+                "ctr",
+                subtitle="FMA",
+                subtitle_size=780,
+            )
+        )
+        sid += 1
+    parts.append(fig_hbar(sid, 11.32, 3.62, 0.42, accent))
+    sid += 1
+    parts.append(fig_box(sid, "行列 C", 11.78, 3.3, 1.05, 0.65, "DCFCE7", accent, text_color, 1100, True))
+    sid += 1
+
+    steps = ["1. タイリング", "2. DMA転送", "3. FMA演算", "4. 部分積蓄積", "5. 書き戻し"]
+    step_w = 1.13
+    base_x = 7.2
+    for i, step in enumerate(steps):
+        parts.append(
+            fig_box(
+                sid,
+                step,
+                base_x + i * (step_w + 0.02),
+                5.2,
+                step_w,
+                0.5,
+                "F8FAFC",
+                "CBD5E1",
+                text_color,
+                880,
+                True,
+            )
+        )
+        sid += 1
+
     return "".join(parts)
 
 
 def draw_dataflow(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "DETERMINISTIC DATAFLOW", panel, accent, accent2, text_color)]
-    labels = [("DDR", 7.35), ("DMA", 8.45), ("MEM", 9.55), ("AIE", 10.65)]
-    for i, (label, x) in enumerate(labels):
-        parts.append(label_box(start_id + 10 + i, label, x, 3.1, 0.8, 0.58, "FFFFFF", accent if i % 2 else accent2, text_color, 900))
-        if i < len(labels) - 1:
-            parts.append(rule_line(start_id + 20 + i, "Flow Arrow", emu(x + 0.84), emu(3.38), emu(0.48), emu(0.025), accent, 100000))
-    parts.append(label_box(start_id + 30, "compile-time schedule", 8.0, 2.35, 2.85, 0.42, "F8FAFC", accent2, text_color, 760))
-    parts.append(label_box(start_id + 31, "no cache miss path", 8.16, 4.16, 2.35, 0.42, "F8FAFC", accent, text_color, 760))
+    parts = [visual_frame(start_id, "CPU/GPU と XDNA のデータ移動の違い", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    parts.append(
+        fig_text(sid, "CPU / GPU — キャッシュ階層から要求時フェッチ", 7.2, 3.0, 5.7, 0.32, "475569", 950, True)
+    )
+    sid += 1
+
+    cpu_labels = ["演算器", "L1$", "L2$", "L3$", "DRAM"]
+    box_w = 1.02
+    box_h = 0.55
+    gap_x = 0.1
+    for i, label in enumerate(cpu_labels):
+        x = 7.2 + i * (box_w + gap_x)
+        parts.append(fig_box(sid, label, x, 3.4, box_w, box_h, "FFFFFF", "CBD5E1", text_color, 980, True))
+        sid += 1
+        if i < len(cpu_labels) - 1:
+            parts.append(fig_hbar(sid, x + box_w + 0.005, 3.4 + box_h / 2 - 0.025, gap_x - 0.01, "94A3B8", 0.05))
+            sid += 1
+
+    parts.append(fig_text(sid, "キャッシュミス時に待ち時間とエネルギーを消費", 7.2, 4.05, 5.7, 0.3, "94A3B8", 800, False))
+    sid += 1
+
+    parts.append(rule_line(sid, "Section Rule", emu(7.2), emu(4.42), emu(5.7), emu(0.012), "E5E7EB", 100000))
+    sid += 1
+
+    parts.append(
+        fig_text(sid, "XDNA — コンパイル時スケジュール / DMA で決定論的に転送", 7.2, 4.6, 5.7, 0.32, accent, 950, True)
+    )
+    sid += 1
+
+    xdna_labels = ["DDR", "DMA", "メモリ\nタイル", "計算\nタイル", "計算\nタイル"]
+    for i, label in enumerate(xdna_labels):
+        x = 7.2 + i * (box_w + gap_x)
+        clean = label.replace("\n", " ")
+        parts.append(fig_box(sid, clean, x, 5.0, box_w, box_h, "EFF6FF", accent, text_color, 980, True))
+        sid += 1
+        if i < len(xdna_labels) - 1:
+            parts.append(fig_hbar(sid, x + box_w + 0.005, 5.0 + box_h / 2 - 0.03, gap_x - 0.01, accent, 0.06))
+            sid += 1
+
+    parts.append(fig_text(sid, "実行中のキャッシュミスがなく、低消費電力", 7.2, 5.65, 5.7, 0.3, accent, 800, False))
+    sid += 1
+
     return "".join(parts)
 
 
 def draw_bars(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "GENERATION TOPS", panel, accent, accent2, text_color)]
-    data = [("XDNA", 10), ("Hawk", 16), ("XDNA 2", 55)]
+    parts = [visual_frame(start_id, "世代別ピーク性能（INT8 TOPS）", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    data = [
+        ("Phoenix", 10, "XDNA 1 / 2023", accent2),
+        ("Hawk Point", 16, "XDNA 1 / 2024", accent2),
+        ("Strix Point", 55, "XDNA 2 / 2024", accent),
+    ]
     max_v = 60
-    for i, (label, value) in enumerate(data):
-        y = 2.72 + i * 0.68
-        parts.append(label_box(start_id + 10 + i, label, 7.35, y - 0.1, 1.08, 0.34, "FFFFFF", accent2, text_color, 660, False))
-        parts.append(shape(start_id + 20 + i, "Bar Base", emu(8.62), emu(y), emu(2.75), emu(0.18), "E5E7EB", None, "rect", 100000))
-        parts.append(shape(start_id + 30 + i, "Bar Value", emu(8.62), emu(y), emu(2.75 * value / max_v), emu(0.18), accent if i == 2 else accent2, None, "rect", 90000))
-        parts.append(label_box(start_id + 40 + i, f"{value} TOPS", 11.48, y - 0.1, 0.72, 0.34, "FFFFFF", accent, text_color, 620, True))
+    bar_left = 9.5
+    bar_max_w = 2.4
+
+    for i, (label, value, year, color) in enumerate(data):
+        y = 3.1 + i * 0.78
+        parts.append(fig_text(sid, label, 7.2, y, 2.25, 0.34, text_color, 950, True))
+        sid += 1
+        parts.append(fig_text(sid, year, 7.2, y + 0.32, 2.25, 0.28, "94A3B8", 780, False))
+        sid += 1
+        parts.append(shape(sid, "Bar BG", emu(bar_left), emu(y + 0.05), emu(bar_max_w), emu(0.32), "E5E7EB", None, "rect"))
+        sid += 1
+        parts.append(
+            shape(
+                sid,
+                "Bar Value",
+                emu(bar_left),
+                emu(y + 0.05),
+                emu(bar_max_w * value / max_v),
+                emu(0.32),
+                color,
+                None,
+                "rect",
+            )
+        )
+        sid += 1
+        parts.append(fig_text(sid, f"{value} TOPS", bar_left + bar_max_w + 0.05, y + 0.04, 0.95, 0.34, color, 1050, True))
+        sid += 1
+
+    threshold_x = bar_left + bar_max_w * 40 / max_v
+    parts.append(fig_vbar(sid, threshold_x, 3.05, 2.2, "DC2626", 0.022))
+    sid += 1
+    parts.append(fig_text(sid, "Copilot+ PC 要件 = 40 TOPS", threshold_x - 1.05, 5.35, 2.2, 0.3, "DC2626", 820, True))
+    sid += 1
+
+    return "".join(parts)
+
+
+def draw_copilot(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "OGA による NPU 実行モード", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    parts.append(
+        fig_box(
+            sid,
+            "アプリ",
+            8.4,
+            3.0,
+            3.2,
+            0.62,
+            "F1F5F9",
+            "CBD5E1",
+            text_color,
+            1050,
+            True,
+            "ctr",
+            subtitle="Copilot+ / LM Studio / 独自",
+            subtitle_size=800,
+        )
+    )
+    sid += 1
+    parts.append(fig_vbar(sid, 9.97, 3.65, 0.3, accent, 0.06))
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "OnnxRuntime GenAI (OGA)",
+            8.4,
+            4.0,
+            3.2,
+            0.62,
+            "EFF6FF",
+            accent,
+            text_color,
+            1050,
+            True,
+            "ctr",
+        )
+    )
+    sid += 1
+    parts.append(fig_hbar(sid, 8.05, 4.78, 3.9, accent, 0.05))
+    sid += 1
+    parts.append(fig_vbar(sid, 8.05, 4.78, 0.35, accent, 0.05))
+    sid += 1
+    parts.append(fig_vbar(sid, 11.92, 4.78, 0.35, accent, 0.05))
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "NPU-only",
+            7.2,
+            5.18,
+            2.4,
+            0.85,
+            "DCFCE7",
+            accent,
+            text_color,
+            1100,
+            True,
+            "ctr",
+            subtitle="NPU 専用・iGPU を解放",
+            subtitle_size=800,
+        )
+    )
+    sid += 1
+    parts.append(
+        fig_box(
+            sid,
+            "Hybrid",
+            10.4,
+            5.18,
+            2.4,
+            0.85,
+            "FEF3C7",
+            accent2,
+            text_color,
+            1100,
+            True,
+            "ctr",
+            subtitle="NPU + iGPU を動的分担",
+            subtitle_size=800,
+        )
+    )
+    sid += 1
+
     return "".join(parts)
 
 
 def draw_stack(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "SOFTWARE STACK", panel, accent, accent2, text_color)]
+    parts = [visual_frame(start_id, "Ryzen AI ソフトウェアスタック", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
     layers = [
-        ("App / LM Studio", accent2),
-        ("ONNX Runtime / OGA", accent),
-        ("AMD Quark", accent2),
-        ("Driver / XRT", accent),
-        ("XDNA NPU", accent2),
+        ("アプリ", "Copilot+ / LM Studio / 独自アプリ", "F1F5F9", "CBD5E1"),
+        ("フレームワーク", "ONNX Runtime + Vitis AI EP / OGA / Lemonade", "EFF6FF", accent2),
+        ("量子化", "AMD Quark（INT8 / INT4 / BFP16）", "DBEAFE", accent),
+        ("ドライバ / ランタイム", "amdxdna.ko / XRT SHIM", "EFF6FF", accent2),
+        ("ハードウェア", "AMD XDNA NPU（AIE タイルアレイ）", "DCFCE7", accent),
     ]
-    for i, (label, color) in enumerate(layers):
-        parts.append(label_box(start_id + 10 + i, label, 7.45, 2.38 + i * 0.55, 3.65, 0.38, "FFFFFF", color, text_color, 720))
-        if i < len(layers) - 1:
-            parts.append(rule_line(start_id + 30 + i, "Stack Link", emu(9.25), emu(2.78 + i * 0.55), emu(0.025), emu(0.22), color, 100000))
+
+    layer_h = 0.6
+    layer_y0 = 3.0
+
+    for i, (head, body, fill, line) in enumerate(layers):
+        y = layer_y0 + i * (layer_h + 0.07)
+        parts.append(
+            fig_box(
+                sid,
+                head,
+                7.2,
+                y,
+                5.7,
+                layer_h,
+                fill,
+                line,
+                text_color,
+                1050,
+                True,
+                "l",
+                subtitle=body,
+                subtitle_size=820,
+            )
+        )
+        sid += 1
+
     return "".join(parts)
 
 
 def draw_comparison(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "NPU COMPARE", panel, accent, accent2, text_color)]
-    cards = [("AMD", "55-60", "TOPS"), ("Intel", "48", "TOPS"), ("Qualcomm", "45-85", "TOPS")]
-    for i, (label, value, unit) in enumerate(cards):
-        x = 7.35 + i * 1.52
-        parts.append(metric_card(start_id + 10 + i, label, value, x, 2.75, 1.24, 0.86, "FFFFFF", accent if i == 0 else accent2, text_color))
-        parts.append(label_box(start_id + 20 + i, unit, x + 0.18, 3.76, 0.86, 0.28, "F8FAFC", accent2, text_color, 560, False))
+    parts = [visual_frame(start_id, "クライアント向け NPU の比較（2026年）", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    headers = [("ベンダー", 1.45), ("TOPS", 1.0), ("アーキ", 1.55), ("精度", 1.7)]
+    rows = [
+        ("AMD XDNA 2", "55–60", "AIE 配列", "INT8 / BFP16"),
+        ("Intel NPU 4", "48", "MAC 配列", "INT8 / FP16"),
+        ("Qualcomm Hexagon", "45–85", "Hexagon DSP", "INT8 / INT4"),
+    ]
+
+    base_x = 7.2
+    base_y = 3.0
+    row_h = 0.55
+
+    x = base_x
+    for i, (h, w) in enumerate(headers):
+        parts.append(fig_box(sid, h, x, base_y, w, 0.46, "F1F5F9", "CBD5E1", "475569", 950, True, "ctr"))
+        sid += 1
+        x += w
+
+    for r, row in enumerate(rows):
+        x = base_x
+        y = base_y + 0.46 + r * row_h
+        emphasis = r == 0
+        for c, value in enumerate(row):
+            w = headers[c][1]
+            fill = "EFF6FF" if emphasis else "FFFFFF"
+            line = accent if emphasis else "CBD5E1"
+            color = accent if emphasis and c == 0 else text_color
+            size = 1000 if c == 0 else 920
+            parts.append(fig_box(sid, value, x, y, w, row_h, fill, line, color, size, c == 0, "ctr"))
+            sid += 1
+            x += w
+
     return "".join(parts)
 
 
 def draw_cards(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "SIGNAL SNAPSHOT", panel, accent, accent2, text_color)]
-    cards = [("55", "TOPS"), ("32", "Tiles"), ("BFP16", "Data Type"), ("6.14", "Linux")]
-    for i, (value, label) in enumerate(cards):
-        x = 7.38 + (i % 2) * 2.0
-        y = 2.62 + (i // 2) * 1.2
-        parts.append(metric_card(start_id + 10 + i, label, value, x, y, 1.55, 0.88, "FFFFFF", accent if i % 2 == 0 else accent2, text_color))
+    parts = [visual_frame(start_id, "XDNA を 4 つのキーワードで掴む", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    items = [
+        ("起源", "Xilinx Versal AI Engine", accent),
+        ("設計", "空間データフロー (AIE + DMA)", accent2),
+        ("到達", "XDNA 2 で 55 TOPS", accent),
+        ("用途", "Copilot+ PC / ローカル LLM", accent2),
+    ]
+
+    base_y = 3.0
+    card_h = 0.78
+    card_w = 5.7
+
+    for i, (head, body, color) in enumerate(items):
+        y = base_y + i * (card_h + 0.1)
+        parts.append(
+            textbox(
+                sid,
+                head,
+                emu(7.2),
+                emu(y),
+                emu(card_w),
+                emu(card_h),
+                plain_paragraph(head, 1050, color, True)
+                + plain_paragraph(body, 1000, text_color, False),
+                fill="F8FAFC",
+                line="CBD5E1",
+                radius="roundRect",
+                shadow=False,
+            )
+        )
+        sid += 1
+
+    return "".join(parts)
+
+
+def draw_summary(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "本資料の論点（3行で要点）", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    items = [
+        ("01", "空間データフロー型 NPU", "AIE タイルが並列にデータ処理"),
+        ("02", "10 → 55 TOPS の急進化", "世代ごとにタイル数とデータ型を拡張"),
+        ("03", "AI PC の中核技術", "OGA でローカル LLM 推論を実用化"),
+    ]
+
+    base_y = 3.0
+    card_h = 1.0
+
+    for i, (num, head, body) in enumerate(items):
+        y = base_y + i * (card_h + 0.18)
+        parts.append(
+            textbox(
+                sid,
+                f"Num {i}",
+                emu(7.2),
+                emu(y + 0.1),
+                emu(0.85),
+                emu(0.8),
+                plain_paragraph(num, 1800, "FFFFFF", True, "ctr"),
+                fill=accent if i == 0 else accent2,
+                line=None,
+                radius="ellipse",
+                shadow=False,
+            )
+        )
+        sid += 1
+        parts.append(
+            textbox(
+                sid,
+                f"Card {i}",
+                emu(8.2),
+                emu(y),
+                emu(4.65),
+                emu(card_h),
+                plain_paragraph(head, 1150, text_color, True)
+                + plain_paragraph(body, 900, "475569", False),
+                fill="F8FAFC",
+                line="CBD5E1",
+                radius="roundRect",
+                shadow=False,
+            )
+        )
+        sid += 1
+
     return "".join(parts)
 
 
 def draw_timeline(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "TECH LINEAGE", panel, accent, accent2, text_color)]
-    parts.append(rule_line(start_id + 10, "Timeline", emu(7.55), emu(3.55), emu(3.95), emu(0.025), accent, 100000))
-    events = [("1984", "Xilinx"), ("2019", "Versal"), ("2022", "AMD"), ("2023", "XDNA")]
-    for i, (year, label) in enumerate(events):
-        x = 7.42 + i * 1.16
-        parts.append(shape(start_id + 20 + i, "Timeline Node", emu(x), emu(3.38), emu(0.25), emu(0.25), accent2 if i % 2 else accent, radius="ellipse"))
-        parts.append(label_box(start_id + 30 + i, year, x - 0.22, 2.72, 0.72, 0.32, "FFFFFF", accent2, text_color, 610, True))
-        parts.append(label_box(start_id + 40 + i, label, x - 0.34, 3.92, 0.98, 0.34, "FFFFFF", accent, text_color, 610, False))
+    parts = [visual_frame(start_id, "Xilinx から AMD XDNA への系譜", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    events = [
+        ("1984", "Xilinx 創業", "FPGA を発明"),
+        ("2019", "Versal ACAP", "AI Engine 搭載"),
+        ("2022", "AMD が買収", "約 350 億ドル"),
+        ("2023", "XDNA 初代", "Ryzen 7040"),
+    ]
+
+    line_y = 4.5
+    xs = [7.55, 9.13, 10.7, 12.28]
+
+    parts.append(shape(sid, "Timeline", emu(7.4), emu(line_y), emu(5.05), emu(0.045), accent, None, "rect"))
+    sid += 1
+
+    for i, (year, head, body) in enumerate(events):
+        x = xs[i]
+        parts.append(
+            shape(
+                sid,
+                f"Node {i}",
+                emu(x - 0.12),
+                emu(line_y - 0.09),
+                emu(0.24),
+                emu(0.24),
+                accent if i == 3 else accent2,
+                radius="ellipse",
+            )
+        )
+        sid += 1
+        parts.append(
+            fig_text(sid, year, x - 0.55, line_y - 0.7, 1.1, 0.34, accent if i == 3 else text_color, 1100, True, "ctr")
+        )
+        sid += 1
+        parts.append(fig_text(sid, head, x - 0.85, line_y + 0.18, 1.7, 0.34, text_color, 920, True, "ctr"))
+        sid += 1
+        parts.append(fig_text(sid, body, x - 0.85, line_y + 0.5, 1.7, 0.3, "475569", 800, False, "ctr"))
+        sid += 1
+
     return "".join(parts)
 
 
 def draw_bfp16(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "BFP16 BLOCK", panel, accent, accent2, text_color)]
-    parts.append(label_box(start_id + 10, "shared exponent", 7.72, 2.52, 2.2, 0.42, "FFFFFF", accent, text_color, 720))
+    parts = [visual_frame(start_id, "BFP16 — ブロック共有指数の仕組み", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    parts.append(fig_text(sid, "通常の FP16（要素ごと独立、各 16 bit）", 7.2, 3.0, 5.7, 0.32, "475569", 920, True))
+    sid += 1
+    fp16_y = 3.4
+    for i in range(3):
+        x = 7.25 + i * 1.85
+        parts.append(shape(sid, "FP16 Sign", emu(x), emu(fp16_y), emu(0.18), emu(0.45), "F1F5F9", "CBD5E1", "rect"))
+        sid += 1
+        parts.append(shape(sid, "FP16 Exp", emu(x + 0.18), emu(fp16_y), emu(0.55), emu(0.45), "FED7AA", accent2, "rect"))
+        sid += 1
+        parts.append(shape(sid, "FP16 Mant", emu(x + 0.73), emu(fp16_y), emu(0.95), emu(0.45), "DBEAFE", accent, "rect"))
+        sid += 1
+        if i == 0:
+            parts.append(fig_text(sid, "符号", x, fp16_y + 0.5, 0.18, 0.24, "475569", 700, False, "ctr"))
+            sid += 1
+            parts.append(fig_text(sid, "指数 5b", x + 0.18, fp16_y + 0.5, 0.55, 0.24, accent2, 720, True, "ctr"))
+            sid += 1
+            parts.append(fig_text(sid, "仮数 10b", x + 0.73, fp16_y + 0.5, 0.95, 0.24, accent, 720, True, "ctr"))
+            sid += 1
+
+    parts.append(rule_line(sid, "Section", emu(7.2), emu(4.45), emu(5.7), emu(0.012), "E5E7EB", 100000))
+    sid += 1
+
+    parts.append(fig_text(sid, "BFP16（8 要素で指数を共有、72 bit / 8 要素 = 9 bit / 要素）", 7.2, 4.6, 5.7, 0.32, accent, 920, True))
+    sid += 1
+
+    bfp_y = 5.0
+    parts.append(shape(sid, "Shared Exp", emu(7.2), emu(bfp_y), emu(0.95), emu(0.6), "FED7AA", accent2, "roundRect"))
+    sid += 1
+    parts.append(fig_text(sid, "共有指数", 7.2, bfp_y + 0.08, 0.95, 0.24, text_color, 780, True, "ctr"))
+    sid += 1
+    parts.append(fig_text(sid, "8 bit", 7.2, bfp_y + 0.3, 0.95, 0.22, "475569", 720, False, "ctr"))
+    sid += 1
+
     for i in range(8):
-        parts.append(shape(start_id + 20 + i, "Mantissa Cell", emu(7.42 + i * 0.45), emu(3.42), emu(0.33), emu(0.52), "EFF6FF", accent2, "roundRect"))
-    parts.append(label_box(start_id + 35, "8 mantissas + 1 exponent", 7.9, 4.35, 2.58, 0.42, "FFFFFF", accent2, text_color, 690))
+        x = 8.25 + i * 0.43
+        parts.append(shape(sid, f"BFP Mant {i}", emu(x), emu(bfp_y), emu(0.4), emu(0.6), "DBEAFE", accent, "roundRect"))
+        sid += 1
+        parts.append(fig_text(sid, f"E{i + 1}", x, bfp_y + 0.18, 0.4, 0.28, text_color, 720, True, "ctr"))
+        sid += 1
+
+    parts.append(fig_text(sid, "各要素 = 符号 1 + 仮数 7 bit（INT8 並のメモリ効率）", 7.2, 5.7, 5.7, 0.3, "475569", 820, False))
+    sid += 1
+
+    return "".join(parts)
+
+
+def draw_usecases(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "AMD XDNA の主な利用シーン", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    cases = [
+        ("Copilot+ PC", ("Windows Recall", "Cocreator", "Live Captions", "Studio Effects"), accent, "FFFFFF"),
+        ("ローカル LLM", ("OGA NPU-only", "Hybrid モード", "LM Studio 連携", "省電力推論"), accent2, "FFFFFF"),
+        ("エッジ AI", ("産業画像検査", "ロボット推論", "医療画像前処理", "小売認識"), "8A5A44", "FFFFFF"),
+    ]
+
+    base_y = 3.0
+    card_w = 1.84
+    gap = 0.08
+    card_h = 2.55
+
+    for i, (head, body_lines, color, head_text_color) in enumerate(cases):
+        x = 7.2 + i * (card_w + gap)
+        parts.append(
+            textbox(
+                sid,
+                f"Head {i}",
+                emu(x),
+                emu(base_y),
+                emu(card_w),
+                emu(0.5),
+                plain_paragraph(head, 1100, head_text_color, True, "ctr"),
+                fill=color,
+                line=None,
+                radius="roundRect",
+                shadow=False,
+            )
+        )
+        sid += 1
+        body_xml = "".join(plain_paragraph("・ " + line, 900, text_color, False) for line in body_lines)
+        parts.append(
+            textbox(
+                sid,
+                f"Body {i}",
+                emu(x),
+                emu(base_y + 0.55),
+                emu(card_w),
+                emu(card_h - 0.55),
+                body_xml,
+                fill="F8FAFC",
+                line="CBD5E1",
+                radius="roundRect",
+                shadow=False,
+            )
+        )
+        sid += 1
+
+    return "".join(parts)
+
+
+def draw_future(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "NPU 専用 vs GPU 統合 — 将来の分岐点", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    parts.append(
+        fig_box(
+            sid,
+            "クライアントAI推論",
+            8.7,
+            3.0,
+            2.55,
+            0.7,
+            "F1F5F9",
+            "CBD5E1",
+            text_color,
+            1150,
+            True,
+            "ctr",
+            subtitle="Copilot+ / ローカル LLM 等",
+            subtitle_size=800,
+        )
+    )
+    sid += 1
+
+    parts.append(fig_vbar(sid, 9.96, 3.7, 0.3, accent, 0.06))
+    sid += 1
+    parts.append(fig_hbar(sid, 8.1, 3.98, 3.85, accent, 0.06))
+    sid += 1
+    parts.append(fig_vbar(sid, 8.1, 3.98, 0.32, accent, 0.06))
+    sid += 1
+    parts.append(fig_vbar(sid, 11.9, 3.98, 0.32, accent, 0.06))
+    sid += 1
+
+    parts.append(
+        textbox(
+            sid,
+            "NPU",
+            emu(7.2),
+            emu(4.35),
+            emu(2.78),
+            emu(0.55),
+            plain_paragraph("専用 NPU 継続", 1050, "FFFFFF", True, "ctr"),
+            fill=accent2,
+            line=None,
+            radius="roundRect",
+            shadow=False,
+        )
+    )
+    sid += 1
+    parts.append(
+        textbox(
+            sid,
+            "NPU body",
+            emu(7.2),
+            emu(4.95),
+            emu(2.78),
+            emu(1.3),
+            plain_paragraph("◯ 高い perf / watt", 920, text_color, False)
+            + plain_paragraph("◯ 決定論的レイテンシ", 920, text_color, False)
+            + plain_paragraph("× 専用ダイ面積を要求", 920, "475569", False),
+            fill="F8FAFC",
+            line=accent2,
+            radius="roundRect",
+            shadow=False,
+        )
+    )
+    sid += 1
+
+    parts.append(
+        textbox(
+            sid,
+            "GPU",
+            emu(10.05),
+            emu(4.35),
+            emu(2.85),
+            emu(0.55),
+            plain_paragraph("GPU 統合", 1050, "FFFFFF", True, "ctr"),
+            fill=accent,
+            line=None,
+            radius="roundRect",
+            shadow=False,
+        )
+    )
+    sid += 1
+    parts.append(
+        textbox(
+            sid,
+            "GPU body",
+            emu(10.05),
+            emu(4.95),
+            emu(2.85),
+            emu(1.3),
+            plain_paragraph("◯ ダイ面積を共用可", 920, text_color, False)
+            + plain_paragraph("◯ RDNA 5 Neural Arrays", 920, text_color, False)
+            + plain_paragraph("× AI 専用の電力効率↓", 920, "475569", False),
+            fill="F8FAFC",
+            line=accent,
+            radius="roundRect",
+            shadow=False,
+        )
+    )
+    sid += 1
+
+    return "".join(parts)
+
+
+def draw_takeaway(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
+    parts = [visual_frame(start_id, "本資料の Takeaway", panel, accent, accent2, text_color)]
+    sid = start_id + 10
+
+    items = [
+        ("空間データフロー", "AIE タイルが DMA で協調する低消費電力 NPU", accent),
+        ("急速な世代進化", "10 → 16 → 55 TOPS / BFP16 / 32 タイル", accent2),
+        ("将来は不透明", "GPU 統合に伴う NPU 単独運用の存続性が論点", accent),
+    ]
+
+    base_y = 3.0
+    card_h = 1.0
+
+    for i, (head, body, color) in enumerate(items):
+        y = base_y + i * (card_h + 0.15)
+        parts.append(
+            textbox(
+                sid,
+                f"Card {i}",
+                emu(7.2),
+                emu(y),
+                emu(5.7),
+                emu(card_h),
+                plain_paragraph(head, 1200, color, True)
+                + plain_paragraph(body, 950, text_color, False),
+                fill="F8FAFC",
+                line="CBD5E1",
+                radius="roundRect",
+                shadow=False,
+            )
+        )
+        sid += 1
+
     return "".join(parts)
 
 
 def draw_network(start_id: int, accent: str, accent2: str, panel: str, text_color: str) -> str:
-    parts = [visual_frame(start_id, "NEURAL FABRIC", panel, accent, accent2, text_color)]
-    nodes = [(7.65, 2.65), (8.75, 2.35), (10.0, 2.7), (8.25, 3.72), (9.45, 4.0), (10.85, 3.58)]
-    for i, (x, y) in enumerate(nodes):
-        for j in range(i + 1, min(len(nodes), i + 3)):
-            x2, y2 = nodes[j]
-            parts.append(rule_line(start_id + 20 + i * 4 + j, "Network Edge", emu(min(x, x2) + 0.09), emu((y + y2) / 2), emu(abs(x2 - x) + 0.02), emu(0.015), accent2, 50000))
-        parts.append(shape(start_id + 10 + i, "Network Node", emu(x), emu(y), emu(0.28), emu(0.28), accent if i % 2 else accent2, radius="ellipse"))
-    return "".join(parts)
+    return draw_cards(start_id, accent, accent2, panel, text_color)
 
 
 def draw_visual(slide: Slide, index: int, panel: str, accent: str, accent2: str, text_color: str) -> str:
-    if slide.visual in {"tile_array", "tile_core", "gemm"}:
+    if slide.visual == "tile_array":
         return draw_tile_array(40, accent, accent2, panel, text_color)
-    if slide.visual in {"dataflow", "copilot", "future", "takeaway"}:
+    if slide.visual == "tile_core":
+        return draw_tile_core(40, accent, accent2, panel, text_color)
+    if slide.visual == "gemm":
+        return draw_gemm(40, accent, accent2, panel, text_color)
+    if slide.visual == "dataflow":
         return draw_dataflow(40, accent, accent2, panel, text_color)
+    if slide.visual == "copilot":
+        return draw_copilot(40, accent, accent2, panel, text_color)
+    if slide.visual == "future":
+        return draw_future(40, accent, accent2, panel, text_color)
+    if slide.visual == "takeaway":
+        return draw_takeaway(40, accent, accent2, panel, text_color)
     if slide.visual == "bars":
         return draw_bars(40, accent, accent2, panel, text_color)
     if slide.visual == "stack":
@@ -583,104 +1472,94 @@ def draw_visual(slide: Slide, index: int, panel: str, accent: str, accent2: str,
         return draw_timeline(40, accent, accent2, panel, text_color)
     if slide.visual == "bfp16":
         return draw_bfp16(40, accent, accent2, panel, text_color)
-    if slide.visual in {"hero", "summary", "usecases"}:
+    if slide.visual == "summary":
+        return draw_summary(40, accent, accent2, panel, text_color)
+    if slide.visual == "usecases":
+        return draw_usecases(40, accent, accent2, panel, text_color)
+    if slide.visual == "hero":
         return draw_cards(40, accent, accent2, panel, text_color)
     return draw_network(40, accent, accent2, panel, text_color)
 
 
-def slide_xml(slide: Slide, index: int) -> str:
-    bg_color, panel_color, accent_color, accent2_color, muted_color, text_color = academic_palette(index)
+SLIDE_COUNT_PLACEHOLDER = "{slide_count}"
 
-    background = shape(2, "Background", 0, 0, int(SLIDE_W), int(SLIDE_H), bg_color)
-    grid = grid_overlay(200, accent_color, accent2_color)
-    accent_bar = shape(3, "Accent Bar", 0, 0, emu(0.18), int(SLIDE_H), accent_color)
-    orb = shape(
-        4,
-        "Watermark Circle",
-        emu(10.55),
-        emu(-0.55),
-        emu(3.45),
-        emu(3.45),
-        "F1F5F9",
-        radius="ellipse",
-        alpha=60000,
-    )
-    small_orb = shape(
-        5,
-        "Watermark Circle Small",
-        emu(11.85),
-        emu(4.95),
-        emu(1.55),
-        emu(1.55),
-        "F8FAFC",
-        radius="ellipse",
-        alpha=70000,
-    )
 
-    title = paragraph(slide.title, 3050 if index else 3900, text_color, True)
-    kicker = paragraph(slide.kicker, 1250, accent_color, False) if slide.kicker else ""
+def slide_xml(slide: Slide, index: int, slide_count: int) -> str:
+    _, _, accent_color, accent2_color, _, text_color = academic_palette(index)
+
+    background = shape(2, "Background", 0, 0, int(SLIDE_W), int(SLIDE_H), "FFFFFF")
+    top_bar = shape(3, "Top Bar", 0, 0, int(SLIDE_W), emu(0.16), accent_color)
+
+    title_size = 4000 if not index else 3200
+    kicker_xml = plain_paragraph(slide.kicker, 1250, accent_color, True) if slide.kicker else ""
+    title_xml = plain_paragraph(slide.title, title_size, text_color, True)
     header = textbox(
         6,
         "Title",
-        emu(0.68),
-        emu(0.42),
-        emu(9.65),
-        emu(1.34),
-        kicker + title,
+        emu(0.6),
+        emu(0.45),
+        emu(10.5),
+        emu(1.45),
+        kicker_xml + title_xml,
+        fill=None,
+        line=None,
+    )
+
+    index_chip = textbox(
+        8,
+        "Section Chip",
+        emu(11.75),
+        emu(0.65),
+        emu(1.0),
+        emu(0.6),
+        plain_paragraph(f"{index + 1:02d}", 1900, accent_color, True, "ctr"),
         fill="FFFFFF",
         line=accent_color,
         radius="roundRect",
         shadow=False,
     )
 
+    divider = rule_line(11, "Header Divider", emu(0.6), emu(1.96), emu(12.15), emu(0.014), accent_color, 100000)
+
     bullet_xml = "".join(bullet_paragraph(b, color=text_color) for b in slide.bullets)
     content = textbox(
         7,
-        "Summary",
-        emu(0.85),
-        emu(2.02),
-        emu(5.72),
-        emu(4.35),
+        "Bullets",
+        emu(0.6),
+        emu(2.18),
+        emu(6.2),
+        emu(4.6),
         bullet_xml,
-        fill="FFFFFF",
-        line=accent2_color,
-        radius="roundRect",
-        shadow=False,
-    )
-    visual = draw_visual(slide, index, panel_color, accent_color, accent2_color, text_color)
-
-    index_chip = textbox(
-        8,
-        "Section Chip",
-        emu(10.75),
-        emu(0.58),
-        emu(1.55),
-        emu(0.56),
-        paragraph(f"{index + 1:02d}", 1600, "FFFFFF", True),
-        fill=accent_color,
-        radius="roundRect",
-        shadow=False,
+        fill=None,
+        line=None,
     )
 
-    footer_text = slide.note or "AMD XDNA Architecture Overview"
+    visual = draw_visual(slide, index, "FFFFFF", accent_color, accent2_color, text_color)
+
+    footer_rule = rule_line(13, "Footer Rule", emu(0.6), emu(6.92), emu(12.15), emu(0.01), "E5E7EB", 100000)
+    footer_text = slide.note or "AMD XDNA アーキテクチャ概要"
     footer = textbox(
         9,
         "Footer",
-        emu(0.75),
-        emu(6.88),
-        emu(11.8),
-        emu(0.35),
-        paragraph(footer_text, 820, "64748B"),
+        emu(0.6),
+        emu(7.0),
+        emu(10.4),
+        emu(0.3),
+        plain_paragraph(footer_text, 820, "64748B"),
+        fill=None,
+        line=None,
     )
 
     slide_no = textbox(
         10,
         "Slide Number",
-        emu(12.25),
-        emu(6.86),
-        emu(0.45),
-        emu(0.35),
-        paragraph(str(index + 1), 800, "64748B"),
+        emu(11.4),
+        emu(7.0),
+        emu(1.35),
+        emu(0.3),
+        plain_paragraph(f"{index + 1} / {slide_count}", 820, "94A3B8", False, "r"),
+        fill=None,
+        line=None,
     )
 
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -699,14 +1578,13 @@ def slide_xml(slide: Slide, index: int) -> str:
         </a:xfrm>
       </p:grpSpPr>
       {background}
-      {grid}
-      {orb}
-      {small_orb}
-      {accent_bar}
+      {top_bar}
       {header}
       {index_chip}
+      {divider}
       {content}
       {visual}
+      {footer_rule}
       {footer}
       {slide_no}
     </p:spTree>
@@ -927,7 +1805,7 @@ def write_presentation(slides: list[Slide], meta: dict[str, str], output: Path) 
         zf.writestr("ppt/slideLayouts/slideLayout1.xml", slide_layout_xml())
         zf.writestr("ppt/slideLayouts/_rels/slideLayout1.xml.rels", slide_layout_rels())
         for i, slide in enumerate(slides, start=1):
-            zf.writestr(f"ppt/slides/slide{i}.xml", slide_xml(slide, i - 1))
+            zf.writestr(f"ppt/slides/slide{i}.xml", slide_xml(slide, i - 1, len(slides)))
 
 
 def find_soffice() -> str | None:
@@ -993,9 +1871,11 @@ def pdf_color(hex_color: str) -> str:
 
 
 def text_width_units(text: str) -> float:
+    # PDF 内蔵 CIDFont (HeiseiKakuGo-W5) は ASCII もほぼ全角幅で描画されるため、
+    # ASCII を 0.95、CJK を 1.0 として概算する。
     width = 0.0
     for ch in text:
-        width += 0.55 if ord(ch) < 128 else 1.0
+        width += 0.95 if ord(ch) < 128 else 1.0
     return width
 
 
@@ -1059,116 +1939,383 @@ def pdf_show_text(x: float, y: float, text: str, size: float, color: str) -> str
     )
 
 
-def pdf_metric(x: float, y: float, value: str, label: str, accent: str, text: str) -> str:
-    return (
-        pdf_rect(x, y, 112, 58, "FFFFFF")
-        + pdf_rect(x, y, 112, 2.5, accent)
-        + pdf_show_text(x + 13, y + 32, value, 17, accent)
-        + pdf_show_text(x + 13, y + 13, label, 7.5, text)
-    )
+def pdf_rendered_width(text: str, size: float) -> float:
+    # PDF 内蔵 HeiseiKakuGo-W5 (UniJIS-UTF16-H) は ASCII/CJK ともほぼ全角幅で描画される。
+    w = 0.0
+    for ch in text:
+        if ord(ch) < 128:
+            w += size * 0.95
+        else:
+            w += size * 1.0
+    return w
 
 
-def pdf_diagram(slide: Slide, accent: str, accent2: str, panel: str, text: str) -> str:
-    out = [pdf_rect(500, 76, 400, 348, panel), pdf_rect(500, 420, 400, 3, accent)]
-    out.append(pdf_show_text(520, 398, "Figure panel", 9, accent))
+def pdf_label(x: float, y: float, w: float, h: float, text: str, fill: str | None, line: str | None, color: str, size: float = 9.0) -> str:
+    parts: list[str] = []
+    if fill:
+        parts.append(pdf_rect(x, y, w, h, fill))
+    if line:
+        parts.append(pdf_rect(x, y, w, 0.6, line))
+        parts.append(pdf_rect(x, y + h - 0.6, w, 0.6, line))
+        parts.append(pdf_rect(x, y, 0.6, h, line))
+        parts.append(pdf_rect(x + w - 0.6, y, 0.6, h, line))
+    text_w = pdf_rendered_width(text, size)
+    parts.append(pdf_show_text(x + (w - text_w) / 2, y + h / 2 - size / 3, text, size, color))
+    return "".join(parts)
 
-    if slide.visual in {"tile_array", "tile_core", "gemm"}:
+
+def pdf_text_centered(x: float, y: float, w: float, text: str, size: float, color: str) -> str:
+    text_w = pdf_rendered_width(text, size)
+    return pdf_show_text(x + (w - text_w) / 2, y, text, size, color)
+
+
+FIGURE_CAPTIONS = {
+    "tile_array": "図｜XDNA 2 タイルアレイ (4×8 = 32 計算タイル)",
+    "tile_core": "図｜AIE 計算タイル 1個の内部構成",
+    "gemm": "図｜GEMM (行列積) の実行フロー",
+    "dataflow": "図｜CPU/GPU と XDNA のデータ移動の違い",
+    "bars": "図｜世代別ピーク性能 (INT8 TOPS)",
+    "copilot": "図｜OGA による NPU 実行モード",
+    "stack": "図｜Ryzen AI ソフトウェアスタック",
+    "radar": "図｜クライアント向け NPU の比較",
+    "timeline": "図｜Xilinx から AMD XDNA への系譜",
+    "bfp16": "図｜BFP16 ブロック共有指数の仕組み",
+    "summary": "図｜本資料の論点 (3行で要点)",
+    "hero": "図｜XDNA の 4 つのキーワード",
+    "usecases": "図｜AMD XDNA の主な利用シーン",
+    "future": "図｜NPU 専用 vs GPU 統合",
+    "takeaway": "図｜本資料の Takeaway",
+}
+
+
+def pdf_diagram(slide: Slide, accent: str, accent2: str, text: str) -> str:
+    out: list[str] = []
+    # 図のコンテンツ領域 (キャプション下から下端まで): x=500..920, y=90..362
+    if slide.visual == "tile_array":
+        cell_w, cell_h, gap = 22, 18, 3
+        base_x, base_y = 508, 280
         for row in range(4):
             for col in range(8):
                 color = "EFF6FF" if (row + col) % 2 == 0 else "DBEAFE"
-                out.append(pdf_rect(530 + col * 26, 280 - row * 24, 18, 15, color))
+                out.append(pdf_rect(base_x + col * (cell_w + gap), base_y - row * (cell_h + gap), cell_w, cell_h, color))
+        bus_w = 8 * (cell_w + gap) - gap
+        mem_y = base_y - 4 * (cell_h + gap) - 4
         for col in range(8):
-            out.append(pdf_rect(530 + col * 26, 166, 18, 17, "ECFDF5"))
-        out.append(pdf_rect(522, 146, 245, 3, accent))
-        out.append(pdf_show_text(770, 275, "32 Tiles", 10, text))
-        out.append(pdf_show_text(770, 170, "L2/DMA", 10, text))
-    elif slide.visual in {"dataflow", "copilot", "future", "takeaway"}:
-        labels = ["DDR", "DMA", "MEM", "AIE"]
-        for i, label in enumerate(labels):
-            x = 532 + i * 72
-            out.append(pdf_rect(x, 260, 52, 38, "FFFFFF"))
-            out.append(pdf_rect(x, 297, 52, 2.5, accent if i % 2 else accent2))
-            out.append(pdf_show_text(x + 10, 274, label, 11, text))
-            if i < len(labels) - 1:
-                out.append(pdf_rect(x + 58, 278, 35, 3, accent))
-        out.append(pdf_show_text(558, 330, "compile-time schedule", 10, accent2))
-        out.append(pdf_show_text(570, 205, "deterministic transfer", 10, accent))
+            out.append(pdf_rect(base_x + col * (cell_w + gap), mem_y, cell_w, cell_h, "DCFCE7"))
+        bus_y = mem_y - 12
+        out.append(pdf_rect(base_x, bus_y, bus_w, 5, accent))
+        ddr_y = bus_y - 26
+        out.append(pdf_rect(base_x, ddr_y, bus_w, 22, "F1F5F9"))
+        out.append(pdf_text_centered(base_x, ddr_y + 8, bus_w, "DDR メインメモリ", 10, text))
+        lx = base_x + bus_w + 14
+        out.append(pdf_rect(lx, base_y - 4, 90, 22, "EFF6FF"))
+        out.append(pdf_show_text(lx + 6, base_y + 4, "計算タイル×32", 9.5, text))
+        out.append(pdf_show_text(lx + 6, base_y - 14, "VLIW + SIMD", 7.5, "475569"))
+        out.append(pdf_rect(lx, mem_y - 2, 90, 22, "DCFCE7"))
+        out.append(pdf_show_text(lx + 6, mem_y + 6, "メモリタイル×8", 9.5, text))
+        out.append(pdf_show_text(lx + 6, mem_y - 12, "L2 / DDR橋渡し", 7.5, "475569"))
+    elif slide.visual == "tile_core":
+        out.append(pdf_rect(508, 282, 195, 56, "EFF6FF"))
+        out.append(pdf_rect(508, 332, 195, 6, accent))
+        out.append(pdf_text_centered(508, 313, 195, "ベクトルプロセッサ", 13, text))
+        out.append(pdf_text_centered(508, 295, 195, "VLIW + SIMD", 9, "475569"))
+        out.append(pdf_rect(708, 282, 124, 56, "DBEAFE"))
+        out.append(pdf_rect(708, 332, 124, 6, accent2))
+        out.append(pdf_text_centered(708, 313, 124, "スカラ RISC", 12, text))
+        out.append(pdf_text_centered(708, 295, 124, "制御フロー", 9, "475569"))
+        out.append(pdf_rect(508, 212, 145, 50, "FFFFFF"))
+        out.append(pdf_rect(508, 256, 145, 6, "94A3B8"))
+        out.append(pdf_text_centered(508, 237, 145, "命令メモリ", 11, text))
+        out.append(pdf_text_centered(508, 220, 145, "Program Memory", 8, "475569"))
+        out.append(pdf_rect(658, 212, 174, 50, "FFFFFF"))
+        out.append(pdf_rect(658, 256, 174, 6, "94A3B8"))
+        out.append(pdf_text_centered(658, 237, 174, "ローカルデータメモリ", 11, text))
+        out.append(pdf_text_centered(658, 220, 174, "重み・活性化値", 8, "475569"))
+        out.append(pdf_rect(508, 142, 324, 50, "DCFCE7"))
+        out.append(pdf_rect(508, 186, 324, 6, accent))
+        out.append(pdf_text_centered(508, 167, 324, "インターコネクト", 12, text))
+        out.append(pdf_text_centered(508, 150, 324, "隣接タイル ↔ メモリタイル / DMA", 9, "475569"))
+    elif slide.visual == "gemm":
+        out.append(pdf_rect(508, 260, 64, 32, "EFF6FF"))
+        out.append(pdf_text_centered(508, 270, 64, "行列 A", 11, text))
+        out.append(pdf_rect(508, 215, 64, 32, "DBEAFE"))
+        out.append(pdf_text_centered(508, 225, 64, "行列 B", 11, text))
+        out.append(pdf_rect(574, 250, 24, 4, accent))
+        for i in range(3):
+            x = 600 + i * 62
+            out.append(pdf_rect(x, 215, 56, 68, "FFFFFF"))
+            out.append(pdf_rect(x, 277, 56, 6, accent))
+            out.append(pdf_text_centered(x, 256, 56, f"Tile {i+1}", 10, text))
+            out.append(pdf_text_centered(x, 238, 56, "FMA", 8, "475569"))
+        out.append(pdf_rect(786, 250, 24, 4, accent))
+        out.append(pdf_rect(812, 233, 64, 36, "DCFCE7"))
+        out.append(pdf_text_centered(812, 244, 64, "行列 C", 12, text))
+        steps = ["1. タイリング", "2. DMA転送", "3. FMA演算", "4. 部分積蓄", "5. 書き戻し"]
+        for i, step in enumerate(steps):
+            x = 510 + i * 82
+            out.append(pdf_rect(x, 130, 78, 30, "F8FAFC"))
+            out.append(pdf_text_centered(x, 143, 78, step, 8.5, text))
+    elif slide.visual == "dataflow":
+        out.append(pdf_show_text(508, 318, "CPU / GPU — キャッシュ階層から要求時フェッチ", 9.5, "475569"))
+        cpu_labels = ["演算器", "L1$", "L2$", "L3$", "DRAM"]
+        box_w = 64
+        for i, label in enumerate(cpu_labels):
+            x = 508 + i * (box_w + 8)
+            out.append(pdf_rect(x, 268, box_w, 32, "FFFFFF"))
+            out.append(pdf_rect(x, 295, box_w, 5, "CBD5E1"))
+            out.append(pdf_text_centered(x, 277, box_w, label, 9.5, text))
+            if i < len(cpu_labels) - 1:
+                out.append(pdf_rect(x + box_w + 1, 281, 6, 4, "94A3B8"))
+        out.append(pdf_show_text(508, 252, "キャッシュミス時に待ち時間とエネルギーを消費", 8.5, "94A3B8"))
+        out.append(pdf_rect(508, 234, 412, 0.8, "E5E7EB"))
+        out.append(pdf_show_text(508, 215, "XDNA — コンパイル時スケジュール / DMA で決定論的に転送", 9.5, accent))
+        xdna_labels = ["DDR", "DMA", "メモリ", "計算", "計算"]
+        for i, label in enumerate(xdna_labels):
+            x = 508 + i * (box_w + 8)
+            out.append(pdf_rect(x, 168, box_w, 32, "EFF6FF"))
+            out.append(pdf_rect(x, 195, box_w, 5, accent))
+            out.append(pdf_text_centered(x, 178, box_w, label, 9.5, text))
+            if i < len(xdna_labels) - 1:
+                out.append(pdf_rect(x + box_w + 1, 181, 6, 4, accent))
+        out.append(pdf_show_text(508, 152, "実行中のキャッシュミスがなく、低消費電力", 8.5, accent))
     elif slide.visual == "bars":
-        data = [("XDNA", 10), ("Hawk", 16), ("XDNA2", 55)]
-        for i, (label, value) in enumerate(data):
-            y = 315 - i * 55
-            out.append(pdf_show_text(532, y, label, 9, text))
-            out.append(pdf_rect(602, y - 4, 190, 12, "E5E7EB"))
-            out.append(pdf_rect(602, y - 4, 190 * value / 60, 12, accent if i == 2 else accent2))
-            out.append(pdf_show_text(807, y, f"{value}", 9, accent))
+        data = [
+            ("Phoenix", 10, "XDNA 1 / 2023", accent2),
+            ("Hawk Point", 16, "XDNA 1 / 2024", accent2),
+            ("Strix Point", 55, "XDNA 2 / 2024", accent),
+        ]
+        max_v = 60
+        bar_left = 670
+        bar_max = 180
+        for i, (label, value, year, color) in enumerate(data):
+            y = 300 - i * 55
+            out.append(pdf_show_text(508, y + 8, label, 9.5, text))
+            out.append(pdf_show_text(508, y - 6, year, 8, "94A3B8"))
+            out.append(pdf_rect(bar_left, y - 2, bar_max, 16, "E5E7EB"))
+            out.append(pdf_rect(bar_left, y - 2, bar_max * value / max_v, 16, color))
+            out.append(pdf_show_text(bar_left + bar_max + 6, y + 2, f"{value}", 11, color))
+        threshold_x = bar_left + bar_max * 40 / max_v
+        out.append(pdf_rect(threshold_x, 195, 1.4, 130, "DC2626"))
+        out.append(pdf_show_text(threshold_x - 60, 168, "Copilot+ PC 要件 = 40 TOPS", 8.5, "DC2626"))
+    elif slide.visual == "copilot":
+        out.append(pdf_rect(595, 320, 240, 30, "F1F5F9"))
+        out.append(pdf_text_centered(595, 330, 240, "アプリ (Copilot+ / LM Studio)", 10, text))
+        out.append(pdf_rect(710, 297, 6, 22, accent))
+        out.append(pdf_rect(595, 262, 240, 30, "EFF6FF"))
+        out.append(pdf_rect(595, 290, 240, 4, accent))
+        out.append(pdf_text_centered(595, 272, 240, "OnnxRuntime GenAI (OGA)", 10, text))
+        out.append(pdf_rect(545, 250, 280, 5, accent))
+        out.append(pdf_rect(545, 220, 5, 32, accent))
+        out.append(pdf_rect(821, 220, 5, 32, accent))
+        out.append(pdf_rect(510, 180, 168, 38, "DCFCE7"))
+        out.append(pdf_rect(510, 214, 168, 4, accent))
+        out.append(pdf_text_centered(510, 197, 168, "NPU-only", 11, text))
+        out.append(pdf_text_centered(510, 184, 168, "NPU 専用・iGPU解放", 8, "475569"))
+        out.append(pdf_rect(692, 180, 168, 38, "FEF3C7"))
+        out.append(pdf_rect(692, 214, 168, 4, accent2))
+        out.append(pdf_text_centered(692, 197, 168, "Hybrid", 11, text))
+        out.append(pdf_text_centered(692, 184, 168, "NPU + iGPU 分担", 8, "475569"))
     elif slide.visual == "stack":
-        layers = ["App / LM Studio", "ONNX Runtime / OGA", "AMD Quark", "Driver / XRT", "XDNA NPU"]
-        for i, label in enumerate(layers):
-            y = 330 - i * 42
-            color = accent if i % 2 else accent2
-            out.append(pdf_rect(548, y, 260, 26, "FFFFFF"))
-            out.append(pdf_rect(548, y + 24, 260, 2, color))
-            out.append(pdf_show_text(570, y + 9, label, 9, text))
+        layers = [
+            ("アプリ", "Copilot+ / LM Studio", "F1F5F9", "CBD5E1"),
+            ("フレームワーク", "ONNX Runtime + Vitis AI EP / OGA", "EFF6FF", accent2),
+            ("量子化", "AMD Quark (INT8 / INT4 / BFP16)", "DBEAFE", accent),
+            ("ドライバ / ランタイム", "amdxdna.ko / XRT SHIM", "EFF6FF", accent2),
+            ("ハードウェア", "AMD XDNA NPU (AIE タイルアレイ)", "DCFCE7", accent),
+        ]
+        for i, (head, body, fill, line) in enumerate(layers):
+            y = 310 - i * 42
+            out.append(pdf_rect(508, y, 412, 36, fill))
+            out.append(pdf_rect(508, y + 32, 412, 4, line))
+            out.append(pdf_show_text(522, y + 19, head, 11, text))
+            out.append(pdf_show_text(522, y + 5, body, 8.5, "475569"))
     elif slide.visual == "timeline":
-        out.append(pdf_rect(540, 265, 292, 3, accent))
-        events = [("1984", "Xilinx"), ("2019", "Versal"), ("2022", "AMD"), ("2023", "XDNA")]
-        for i, (year, label) in enumerate(events):
-            x = 540 + i * 94
-            out.append(pdf_circle(x, 266, 7, accent2 if i % 2 else accent))
-            out.append(pdf_show_text(x - 16, 310, year, 8, text))
-            out.append(pdf_show_text(x - 18, 230, label, 8, text))
+        out.append(pdf_rect(540, 240, 360, 4, accent))
+        events = [("1984", "Xilinx 創業", "FPGA を発明"), ("2019", "Versal ACAP", "AI Engine 搭載"), ("2022", "AMD が買収", "約350億ドル"), ("2023", "XDNA 初代", "Ryzen 7040")]
+        for i, (year, head, body) in enumerate(events):
+            x = 560 + i * 112
+            out.append(pdf_circle(x, 242, 9, accent if i == 3 else accent2))
+            out.append(pdf_text_centered(x - 40, 275, 80, year, 12, accent if i == 3 else text))
+            out.append(pdf_text_centered(x - 60, 220, 120, head, 10, text))
+            out.append(pdf_text_centered(x - 60, 205, 120, body, 8.5, "475569"))
     elif slide.visual == "bfp16":
-        out.append(pdf_rect(580, 318, 190, 30, "FFFFFF"))
-        out.append(pdf_show_text(610, 328, "shared exponent", 10, accent))
+        out.append(pdf_show_text(508, 320, "通常の FP16 (要素ごと独立)", 10, "475569"))
+        for i in range(3):
+            x = 510 + i * 135
+            out.append(pdf_rect(x, 270, 14, 38, "F1F5F9"))
+            out.append(pdf_rect(x + 14, 270, 40, 38, "FED7AA"))
+            out.append(pdf_rect(x + 54, 270, 65, 38, "DBEAFE"))
+            if i == 0:
+                out.append(pdf_text_centered(x, 256, 14, "符", 7, "475569"))
+                out.append(pdf_text_centered(x + 14, 256, 40, "指数 5b", 7.5, accent2))
+                out.append(pdf_text_centered(x + 54, 256, 65, "仮数 10b", 7.5, accent))
+        out.append(pdf_rect(508, 232, 412, 0.8, "E5E7EB"))
+        out.append(pdf_show_text(508, 218, "BFP16 (8 要素で指数を共有)", 10, accent))
+        bfp_y = 168
+        out.append(pdf_rect(510, bfp_y, 64, 44, "FED7AA"))
+        out.append(pdf_text_centered(510, bfp_y + 26, 64, "共有指数", 9, text))
+        out.append(pdf_text_centered(510, bfp_y + 12, 64, "8 bit", 8, "475569"))
         for i in range(8):
-            out.append(pdf_rect(535 + i * 33, 240, 23, 42, "EFF6FF"))
-        out.append(pdf_show_text(595, 205, "8 mantissas + 1 exponent", 10, accent2))
+            x = 580 + i * 32
+            out.append(pdf_rect(x, bfp_y, 28, 44, "DBEAFE"))
+            out.append(pdf_text_centered(x, bfp_y + 18, 28, f"E{i+1}", 8.5, text))
+        out.append(pdf_show_text(508, bfp_y - 14, "各要素 = 符号1 + 仮数7 bit", 8.5, "475569"))
     elif slide.visual == "radar":
-        cards = [("AMD", "55-60"), ("Intel", "48"), ("Qualcomm", "45-85")]
-        for i, (label, value) in enumerate(cards):
-            out.append(pdf_metric(525 + i * 118, 238, value, label, accent if i == 0 else accent2, text))
-            out.append(pdf_show_text(548 + i * 118, 215, "TOPS", 8, text))
+        headers = [("ベンダー", 110), ("TOPS", 76), ("アーキ", 100), ("精度", 124)]
+        rows = [
+            ("AMD", "55–60", "AIE 配列", "INT8/BFP16"),
+            ("Intel", "48", "MAC 配列", "INT8/FP16"),
+            ("Qualcomm", "45–85", "Hexagon", "INT8/INT4"),
+        ]
+        base_x = 508
+        base_y = 290
+        x = base_x
+        for h, w in headers:
+            out.append(pdf_rect(x, base_y, w, 30, "F1F5F9"))
+            out.append(pdf_text_centered(x, base_y + 10, w, h, 9.5, "475569"))
+            x += w
+        for r, row in enumerate(rows):
+            x = base_x
+            y = base_y - 38 - r * 38
+            emphasis = r == 0
+            for c, value in enumerate(row):
+                w = headers[c][1]
+                out.append(pdf_rect(x, y, w, 34, "EFF6FF" if emphasis else "FFFFFF"))
+                if emphasis:
+                    out.append(pdf_rect(x, y, w, 4, accent))
+                color = accent if emphasis and c == 0 else text
+                out.append(pdf_text_centered(x, y + 12, w, value, 10 if c == 0 else 8.8, color))
+                x += w
+    elif slide.visual == "usecases":
+        cases = [
+            ("Copilot+ PC", ["Recall", "Cocreator", "Live Captions", "Studio Effects"], accent),
+            ("ローカル LLM", ["NPU-only", "Hybrid モード", "LM Studio", "省電力推論"], accent2),
+            ("エッジ AI", ["産業画像検査", "ロボット推論", "医療画像処理", "小売認識"], "8A5A44"),
+        ]
+        base_y = 130
+        card_h = 180
+        for i, (head, lines, color) in enumerate(cases):
+            x = 510 + i * 138
+            out.append(pdf_rect(x, base_y + card_h - 32, 130, 32, color))
+            out.append(pdf_text_centered(x, base_y + card_h - 22, 130, head, 11, "FFFFFF"))
+            out.append(pdf_rect(x, base_y, 130, card_h - 36, "F8FAFC"))
+            for j, line in enumerate(lines):
+                out.append(pdf_show_text(x + 10, base_y + card_h - 60 - j * 22, line, 8.5, text))
+    elif slide.visual == "future":
+        out.append(pdf_rect(620, 318, 180, 38, "F1F5F9"))
+        out.append(pdf_text_centered(620, 336, 180, "クライアントAI推論", 11, text))
+        out.append(pdf_text_centered(620, 322, 180, "Copilot+ / ローカル LLM", 8, "475569"))
+        out.append(pdf_rect(708, 296, 5, 22, accent))
+        out.append(pdf_rect(540, 290, 340, 5, accent))
+        out.append(pdf_rect(540, 268, 5, 22, accent))
+        out.append(pdf_rect(875, 268, 5, 22, accent))
+        out.append(pdf_rect(510, 232, 200, 32, accent2))
+        out.append(pdf_text_centered(510, 244, 200, "専用 NPU 継続", 11, "FFFFFF"))
+        out.append(pdf_rect(510, 152, 200, 78, "F8FAFC"))
+        out.append(pdf_show_text(522, 210, "◯ 高い perf / watt", 9, text))
+        out.append(pdf_show_text(522, 190, "◯ 決定論的レイテンシ", 9, text))
+        out.append(pdf_show_text(522, 170, "× 専用ダイ面積", 9, "475569"))
+        out.append(pdf_rect(715, 232, 205, 32, accent))
+        out.append(pdf_text_centered(715, 244, 205, "GPU 統合", 11, "FFFFFF"))
+        out.append(pdf_rect(715, 152, 205, 78, "F8FAFC"))
+        out.append(pdf_show_text(727, 210, "◯ ダイ面積を共用可", 9, text))
+        out.append(pdf_show_text(727, 190, "◯ RDNA 5 Neural Arrays", 9, text))
+        out.append(pdf_show_text(727, 170, "× AI特化の電力効率↓", 9, "475569"))
+    elif slide.visual == "takeaway":
+        items = [
+            ("空間データフロー", "AIE タイルが DMA で協調する低消費電力 NPU", accent),
+            ("急速な世代進化", "10 → 16 → 55 TOPS / BFP16 / 32 タイル", accent2),
+            ("将来は不透明", "GPU 統合に伴う NPU 単独運用の存続性が論点", accent),
+        ]
+        for i, (head, body, color) in enumerate(items):
+            y = 300 - i * 80
+            out.append(pdf_rect(508, y, 412, 64, "F8FAFC"))
+            out.append(pdf_rect(508, y + 60, 412, 4, color))
+            out.append(pdf_show_text(522, y + 40, head, 12, color))
+            out.append(pdf_show_text(522, y + 18, body, 9.5, text))
+    elif slide.visual == "summary":
+        items = [
+            ("01", "空間データフロー型 NPU", "AIE タイルが並列にデータ処理", accent),
+            ("02", "10 → 55 TOPS の急進化", "世代ごとにタイル数とデータ型を拡張", accent2),
+            ("03", "AI PC の中核技術", "OGA でローカル LLM 推論を実用化", accent),
+        ]
+        for i, (num, head, body, color) in enumerate(items):
+            y = 280 - i * 80
+            out.append(pdf_circle(528, y + 30, 22, color))
+            out.append(pdf_text_centered(508, y + 24, 40, num, 16, "FFFFFF"))
+            out.append(pdf_rect(564, y, 356, 60, "F8FAFC"))
+            out.append(pdf_show_text(578, y + 36, head, 12, text))
+            out.append(pdf_show_text(578, y + 14, body, 9.5, "475569"))
     else:
-        cards = [("55", "TOPS"), ("32", "Tiles"), ("BFP16", "Data"), ("6.14", "Linux")]
-        for i, (value, label) in enumerate(cards):
-            out.append(pdf_metric(530 + (i % 2) * 155, 270 - (i // 2) * 90, value, label, accent if i % 2 == 0 else accent2, text))
+        items = [
+            ("起源", "Xilinx Versal AI Engine", accent),
+            ("設計", "空間データフロー (AIE + DMA)", accent2),
+            ("到達", "XDNA 2 で 55 TOPS", accent),
+            ("用途", "Copilot+ PC / ローカル LLM", accent2),
+        ]
+        for i, (head, body, color) in enumerate(items):
+            y = 300 - i * 56
+            out.append(pdf_rect(508, y, 412, 48, "F8FAFC"))
+            out.append(pdf_show_text(522, y + 28, head, 11, color))
+            out.append(pdf_show_text(522, y + 10, body, 10, text))
     return "".join(out)
 
 
-def pdf_slide_stream(slide: Slide, index: int, width: float, height: float) -> str:
-    bg_color, panel_color, accent_color, accent2_color, _, text_color = academic_palette(index)
+def pdf_slide_stream(slide: Slide, index: int, width: float, height: float, slide_count: int) -> str:
+    _, _, accent_color, accent2_color, _, text_color = academic_palette(index)
 
-    stream = []
-    stream.append(pdf_rect(0, 0, width, height, bg_color))
-    for i in range(4):
-        stream.append(pdf_rect(54, 112 + i * 90, 850, 1, "E5E7EB"))
-    stream.append(pdf_circle(width - 80, height - 20, 125, "F1F5F9"))
-    stream.append(pdf_circle(width - 15, 110, 55, "F8FAFC"))
-    stream.append(pdf_rect(0, 0, 13, height, accent_color))
+    stream: list[str] = []
+    stream.append(pdf_rect(0, 0, width, height, "FFFFFF"))
+    stream.append(pdf_rect(0, height - 11, width, 11, accent_color))
 
-    stream.append(pdf_rect(49, height - 130, 695, 96, panel_color))
-    stream.append(pdf_rect(49, height - 130, 695, 3, accent_color))
-    stream.append(pdf_show_text(67, height - 67, slide.kicker, 11, accent_color))
-    stream.append(pdf_show_text(67, height - 105, slide.title, 24 if index else 29, text_color))
+    if slide.kicker:
+        stream.append(pdf_show_text(45, height - 38, slide.kicker, 11, accent_color))
+        stream.append(pdf_show_text(45, height - 70, slide.title, 22 if index else 28, text_color))
+    else:
+        stream.append(pdf_show_text(45, height - 60, slide.title, 28, text_color))
 
-    stream.append(pdf_rect(width - 187, height - 85, 112, 40, accent_color))
-    stream.append(pdf_show_text(width - 151, height - 72, f"{index + 1:02d}", 18, "FFFFFF"))
+    chip_w, chip_h = 64, 40
+    chip_x = width - 78
+    chip_y = height - 60
+    stream.append(pdf_rect(chip_x, chip_y, chip_w, chip_h, "FFFFFF"))
+    stream.append(pdf_rect(chip_x, chip_y, chip_w, 1.6, accent_color))
+    stream.append(pdf_rect(chip_x, chip_y + chip_h - 1.6, chip_w, 1.6, accent_color))
+    stream.append(pdf_rect(chip_x, chip_y, 1.6, chip_h, accent_color))
+    stream.append(pdf_rect(chip_x + chip_w - 1.6, chip_y, 1.6, chip_h, accent_color))
+    stream.append(pdf_text_centered(chip_x, chip_y + 12, chip_w, f"{index + 1:02d}", 18, accent_color))
 
-    stream.append(pdf_rect(61, 94, 412, 313, panel_color))
-    stream.append(pdf_rect(61, 403, 412, 4, accent2_color))
-    stream.append(pdf_diagram(slide, accent_color, accent2_color, panel_color, text_color))
+    stream.append(pdf_rect(45, height - 102, width - 90, 1.4, accent_color))
 
-    y = 360
+    bullet_x = 50
+    bullet_y = height - 134
     for bullet in slide.bullets:
-        lines = wrap_text(bullet, 28)
-        stream.append(pdf_show_text(92, y, "•", 17, accent_color))
+        lines = wrap_text(bullet, 23)
+        stream.append(pdf_show_text(bullet_x, bullet_y, "●", 9, accent_color))
         for i, line in enumerate(lines):
-            stream.append(pdf_show_text(116, y - (i * 22), line, 13.5, text_color))
-        y -= max(1, len(lines)) * 22 + 18
+            stream.append(pdf_show_text(bullet_x + 20, bullet_y - i * 22, line, 13, text_color))
+        bullet_y -= max(1, len(lines)) * 22 + 14
 
-    footer = slide.note or "AMD XDNA Architecture Overview"
-    stream.append(pdf_show_text(54, 29, footer[:96], 8.0, "64748B"))
-    stream.append(pdf_show_text(width - 65, 29, str(index + 1), 8.0, "64748B"))
+    fig_x = 498
+    fig_w = 424
+    fig_y_top = height - 102 - 6
+    fig_h = 332
+    fig_y_bottom = fig_y_top - fig_h
+    stream.append(pdf_rect(fig_x, fig_y_bottom, fig_w, fig_h, "FFFFFF"))
+    stream.append(pdf_rect(fig_x, fig_y_bottom, fig_w, 0.8, "E5E7EB"))
+    stream.append(pdf_rect(fig_x, fig_y_top - 0.8, fig_w, 0.8, "E5E7EB"))
+    stream.append(pdf_rect(fig_x, fig_y_bottom, 0.8, fig_h, "E5E7EB"))
+    stream.append(pdf_rect(fig_x + fig_w - 0.8, fig_y_bottom, 0.8, fig_h, "E5E7EB"))
+    stream.append(pdf_rect(fig_x, fig_y_top - 32, fig_w, 32, "F8FAFC"))
+    caption = FIGURE_CAPTIONS.get(slide.visual, "図｜詳細")
+    stream.append(pdf_show_text(fig_x + 16, fig_y_top - 21, caption, 10.5, accent_color))
+    stream.append(pdf_rect(fig_x, fig_y_top - 33, fig_w, 0.8, accent_color))
+
+    stream.append(pdf_diagram(slide, accent_color, accent2_color, text_color))
+
+    stream.append(pdf_rect(45, 32, width - 90, 0.6, "E5E7EB"))
+    footer_text = slide.note or "AMD XDNA アーキテクチャ概要"
+    stream.append(pdf_show_text(45, 18, footer_text[:70], 8.5, "64748B"))
+    stream.append(pdf_show_text(width - 100, 18, f"{index + 1} / {slide_count}", 8.5, "94A3B8"))
     return "".join(stream)
 
 
@@ -1197,7 +2344,7 @@ def render_pdf(slides: list[Slide], meta: dict[str, str], pdf_path: Path) -> Non
     page_objects: list[int] = []
     pages_obj = 0
     for index, slide in enumerate(slides):
-        stream = pdf_slide_stream(slide, index, width, height).encode("utf-8")
+        stream = pdf_slide_stream(slide, index, width, height, len(slides)).encode("utf-8")
         content_obj = add_object(
             b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n"
             + stream
