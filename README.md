@@ -1,24 +1,32 @@
-# AMD XDNAアーキテクチャ概要
+# wiki.llm — LLM 技術 Wiki
 
-AMDのノートPC・デスクトップPC向けプロセッサに搭載されているAI専用チップ「XDNA」の技術解説ドキュメントです。  
-設計思想・タイル構造・世代別の進化・ソフトウェアスタック・競合NPUとの比較・実際の利用シーンまでを1つの文書にまとめています。
+大規模言語モデル（LLM）に関する技術知識を、**記事単位の Markdown** として集約・公開するリポジトリです。
+
+推論ランタイムの選定、Prefill / Decode の仕組み、サービング最適化など、実務で迷いやすいテーマを **調査メモ兼リファレンス** として整理しています。GitHub 上では `wiki/` 内の Markdown をそのまま閲覧でき、必要に応じて PDF も生成できます。
 
 ## このリポジトリに含まれるもの
 
 ```
-xdna-overview/
-├── main.md        ← 本文（Markdown）
-├── main.pdf       ← PDF版（配布・閲覧用のビルド済みコピー）
+wiki.llm/
+├── wiki/          ← 記事本体（Markdown、1ファイル = 1記事）
 ├── gen_pdf.py     ← Markdown → LaTeX → PDF 変換スクリプト
-├── Makefile       ← ビルド用（内部で gen_pdf.py を呼び出す）
-└── build/         ← 中間ファイル・再ビルド時の PDF 出力先（git管理外）
+├── Makefile       ← ビルド用（wiki/ 内の全 .md を PDF 化）
+└── build/         ← 中間ファイル・PDF 出力先（git 管理外）
 ```
 
-- **`main.md`** を読めば内容はすべて確認できます。GitHub上でそのまま閲覧可能です。
-- **`main.pdf`** はリポジトリに同梱している PDF 版です（`make pdf` で得られる成果物とは別パスに置かれています）。
-- PDFを自分でビルドし直す場合は、次節の手順を参照してください。
+- **`wiki/`** に記事を追加・更新していきます。記事同士は Markdown リンクで相互参照できます。
+- PDF が必要なときは `make pdf` で `wiki/` 内の全 `.md` を一括ビルドします（出力先: `build/`）。
 
-## PDFのビルド方法
+## 掲載記事（wiki/）
+
+| 記事 | 概要 |
+|:--|:--|
+| [LLM推論ランタイムまとめ](wiki/LLM推論ランタイムまとめ.md) | llama.cpp / vLLM / SGLang / TensorRT-LLM など主要ランタイムの分類・特徴・選定指針（2026年時点） |
+| [LLM推論のPrefill詳説 ― トークン並列・Chunked Prefill・PD分離](wiki/LLM推論のPrefill詳説%20―%20トークン並列・Chunked%20Prefill・PD分離.md) | Prefill / Decode、トークン並列、Chunked Prefill、PD 分離 |
+
+記事は今後も追加・更新していく想定です。
+
+## PDF のビルド方法
 
 `gen_pdf.py` は **Markdown を LaTeX に変換**し、**tectonic** で PDF を生成します。日本語は **XeLaTeX 系**（`xeCJK` / `fontspec`）で組版し、OS に応じてフォントを切り替えます（macOS: ヒラギノ系、それ以外: Noto CJK）。
 
@@ -26,7 +34,7 @@ xdna-overview/
 
 | ツール | 用途 | インストール例 |
 |:--|:--|:--|
-| Python 3 | `gen_pdf.py` の実行 | 各OSの標準／配布物 |
+| Python 3 | `gen_pdf.py` の実行 | 各 OS の標準／配布物 |
 | [tectonic](https://tectonic-typesetting.github.io/) | LaTeX → PDF ビルド（**必須**） | `brew install tectonic` または `cargo install tectonic` |
 | [mermaid-cli](https://github.com/mermaid-js/mermaid-cli)（`mmdc`） | Mermaid 図のローカル画像化（**任意**） | `npm install -g @mermaid-js/mermaid-cli` |
 
@@ -53,40 +61,32 @@ xdna-overview/
 ### ビルド手順（Makefile）
 
 ```bash
-make pdf
-```
-
-デフォルトでは `build/main.tex` と **`build/main.pdf`** が生成されます。PDF を開くには：
-
-```bash
-make miru    # macOS の open で build/main.pdf を表示
-```
-
-ビルド成果物を削除するには：
-
-```bash
-make clean
+make pdf     # wiki/*.md → build/*.pdf
+make miru    # macOS の open で build/*.pdf を表示
+make clean   # build/ を削除
 ```
 
 ### ビルド手順（スクリプトを直接実行）
 
+単一記事だけ PDF 化する場合:
+
 ```bash
-./gen_pdf.py                    # デフォルト: main.md → build/
-./gen_pdf.py path/to/other.md   # 第1引数で Markdown を指定（PDF は path/to/other.pdf ではなく build/other.pdf）
+./gen_pdf.py wiki/LLM推論ランタイムまとめ.md
 ```
 
-入力・出力のパスは環境変数でも上書きできます（Makefile と同じ変数名）。
+入力・出力のパスは環境変数でも上書きできます。
 
 | 環境変数 | 既定 | 説明 |
 |:--|:--|:--|
-| `PATH_MARKDOWN` | `./main.md` | 入力 Markdown |
+| `PATH_MARKDOWN` | — | 入力 Markdown のパス（`make pdf` では各記事ごとに自動設定） |
 | `PATH_BUILD` | `./build/` | `.tex` / `.pdf` / Mermaid 中間ファイルの出力ディレクトリ |
+| `WIKI_DIR` | `./wiki` | `make pdf` が走査する記事ディレクトリ |
 
-生成される PDF のファイル名は **入力 Markdown のベース名**に合わせます（例: `main.md` → `build/main.pdf`）。
+生成される PDF のファイル名は **入力 Markdown のベース名**に合わせます（例: `wiki/LLM推論ランタイムまとめ.md` → `build/LLM推論ランタイムまとめ.pdf`）。
 
-### メタデータ（`main.md` 側）
+### 記事のメタデータ
 
-`gen_pdf.py` は本文の先頭付近から次を読み取り、LaTeX の表紙・日付・作者に反映します。
+`gen_pdf.py` は各記事の先頭付近から次を読み取り、LaTeX の表紙・日付・作者に反映します。
 
 - 先頭の `# タイトル` — ドキュメントタイトル
 - `作成日時:` / `更新日時:` の行 — `\date` 用の文字列（該当行は本文から除く）
@@ -103,20 +103,25 @@ Markdown 側で対応している主な要素は次のとおりです。
 - **テーブル**（`|` 形式。列が多い場合は `\footnotesize` で縮小）
 - **コードフェンス**（` ``` `。`mermaid` 以外は quote + verbatim）
 
-## main.md の主な内容
+## 記事の追加・更新
 
-1. **概要** — XDNAとは何か、3行での要点
-2. **技術的起源** — Xilinx AI Engineから AMD XDNAへの経緯
-3. **アーキテクチャの基本構造** — 空間データフロー、2Dタイルアレイ、AIE計算タイルの内部
-4. **世代別の進化** — XDNA → XDNA 2 → 今後のロードマップ、SKU一覧
-5. **データ型と精度** — INT8/INT4/BFP16、GEMM性能の実測値
-6. **ソフトウェアスタック** — ONNX Runtime、OGA、Lemonade SDK、Linuxドライバ
-7. **競合NPUとの比較** — Intel NPU 4、Qualcomm Hexagonとの対比
-8. **実際の利用シーン** — Copilot+ PC、ローカルLLM推論、エッジAI
-9. **設計思想まとめ** — 決定論的実行、スケーラビリティ、プログラマビリティ、電力効率
-10. **NPU専用時代の終焉？** — RDNA 5 Neural Arraysへの統合可能性、リーク情報の検証と著者の見解
-11. **まとめ** — XDNAの現在地と今後の展望
+1. `wiki/` に `.md` ファイルを追加または編集する
+2. 先頭に `# タイトル` と日時メタデータを書く（既存記事を参考にしてください）
+3. 他記事へのリンクは相対パス（例: `[Prefill 詳説](LLM推論のPrefill詳説 ― トークン並列・Chunked Prefill・PD分離.md)`）
+4. `make pdf` で PDF を確認する
 
 ## ライセンス・著者
 
 文責: 濱田 剛（Tsuyoshi Hamada） — hamada@degima.ai
+
+### ライセンス
+
+このリポジトリは **ドキュメント** と **コード** でライセンスが分かれています。
+
+| 対象 | ライセンス | 該当ファイルの例 |
+|:--|:--|:--|
+| ドキュメント | [CC BY 4.0](LICENSE-DOCUMENTATION) | `wiki/` 内の Markdown、`README.md` |
+| コードサンプル | [Apache License 2.0](LICENSE) | `gen_pdf.py`、`gen_ppt.py`、`Makefile`、記事内のコードフェンス |
+
+- **Documentation is licensed under CC BY 4.0.**
+- **Code samples are licensed under the Apache License 2.0.**
